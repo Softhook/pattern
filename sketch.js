@@ -6,7 +6,7 @@
 
 'use strict';
 
-const APP_VERSION = 'Kindle Build v1.6.1';
+const APP_VERSION = 'Kindle Build v1.6.2';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -247,7 +247,7 @@ function drawPlayerSprite(gc, gr) {
 
   fill(0); noStroke();
   arc(cx, cy - s * 0.21, s * 0.34, s * 0.34, PI, TWO_PI);
-  rect(px + s * 0.26, py + s * 0.30, s * 0.48, s * 0.07, 2);
+  rect(px + s * 0.26, py + s * 0.30, s * 0.48, s * 0.07);
 
   fill(255);
   ellipse(cx, cy - s * 0.09, s * 0.20, s * 0.18);
@@ -265,8 +265,8 @@ function drawPlayerSprite(gc, gr) {
   rect(cx - s * 0.10, cy + s * 0.08, s * 0.20, s * 0.05);
 
   fill(0);
-  rect(px + s * 0.24, py + s * 0.64, s * 0.14, s * 0.26, 3);
-  rect(px + s * 0.62, py + s * 0.64, s * 0.14, s * 0.26, 3);
+  rect(px + s * 0.24, py + s * 0.64, s * 0.14, s * 0.26);
+  rect(px + s * 0.62, py + s * 0.64, s * 0.14, s * 0.26);
 
   strokeWeight(4); stroke(0); noFill();
   line(cx + s * 0.28, cy + s * 0.14, cx + s * 0.44, cy - s * 0.30);
@@ -280,7 +280,7 @@ function drawEnemySprite(gc, gr) {
 
   fill(0); noStroke();
   arc(cx, cy - s * 0.06, s * 0.48, s * 0.48, PI, TWO_PI);
-  rect(px + s * 0.26, py + s * 0.40, s * 0.48, s * 0.24, 4);
+  rect(px + s * 0.26, py + s * 0.40, s * 0.48, s * 0.24);
 
   fill(255);
   ellipse(cx - s * 0.10, cy - s * 0.10, s * 0.16, s * 0.16);
@@ -309,7 +309,7 @@ function drawStairsSprite(gc, gr) {
     let stepW = fullW - i * (fullW / 4);
     let sx    = startX + i * (fullW / 4);
     let sy    = startY + i * (stepH + s * 0.03);
-    rect(sx, sy, stepW, stepH, 2);
+    rect(sx, sy, stepW, stepH);
   }
 
   let ax = px + s * 0.50, ay = py + s * 0.82;
