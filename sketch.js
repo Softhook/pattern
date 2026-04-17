@@ -6,7 +6,7 @@
 
 'use strict';
 
-const APP_VERSION = 'Kindle Build v1.4.1';
+const APP_VERSION = 'Kindle Build v1.4.2';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -22,6 +22,7 @@ let statusMsg = "Tap a highlighted cell to move. Find the stairs (<).";
 let gameOver  = false;
 let spriteRenderFailed = false;
 let entityDrawError = "";
+let renderPhaseError = "";
 let gameCanvas = null;
 let lastTapCell = null;
 
@@ -106,13 +107,16 @@ function draw() {
 
   drawStats();
   drawGrid();
-  drawMoveHints();
   try {
+    drawMoveHints();
     drawEntities();
     entityDrawError = "";
+    renderPhaseError = "";
   } catch (err) {
     spriteRenderFailed = true;
-    entityDrawError = err && err.message ? err.message : "unknown draw error";
+    let msg = err && err.message ? err.message : "unknown draw error";
+    entityDrawError = msg;
+    renderPhaseError = msg;
     // Absolute minimum safe fallback shapes.
     drawUltraSafeEntities();
   }
@@ -153,7 +157,8 @@ function drawMoveHints() {
   for (let m of moves) {
     let x = m.nx * CELL_SIZE + 6;
     let y = STATS_H + m.ny * CELL_SIZE + 6;
-    rect(x, y, CELL_SIZE - 12, CELL_SIZE - 12, 4);
+    // Use plain rect (no corner radius) for maximum browser compatibility.
+    rect(x, y, CELL_SIZE - 12, CELL_SIZE - 12);
   }
 }
 
@@ -320,7 +325,7 @@ function drawStatusBar() {
   fill(0); textSize(18); textAlign(LEFT, CENTER);
   let modeTag = spriteRenderFailed ? "[COMPAT] " : "";
   let counts = `P:${player.x},${player.y} E:${enemies.length} G:${goldItems.length} S:${stairs.x},${stairs.y}`;
-  let errTag = entityDrawError ? `  |  ERR:${entityDrawError}` : "";
+  let errTag = renderPhaseError ? `  |  ERR:${renderPhaseError}` : "";
   text("  " + modeTag + statusMsg + "  |  " + counts + errTag, 0, height - MSG_H + MSG_H / 2);
 }
 
