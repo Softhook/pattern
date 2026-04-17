@@ -135,16 +135,9 @@ function drawMoveHints() {
 }
 
 function drawEntities() {
-  try {
-    drawStairsSprite(stairs.x, stairs.y);
-    for (let g of goldItems) drawGoldSprite(g.x, g.y);
-    for (let e of enemies)   drawEnemySprite(e.x, e.y);
-    drawPlayerSprite(player.x, player.y);
-  } catch (_) {
-    // Kindle-safe fallback: simple hard rectangles if sprite rendering fails.
-    spriteRenderFailed = true;
-    drawFallbackEntities();
-  }
+  // Kindle-first path: always use simple high-contrast blocks.
+  // This avoids browser-specific canvas quirks and guarantees visibility.
+  drawFallbackEntities();
 }
 
 // ── Sprites ───────────────────────────────────────────────────────────────────
@@ -235,11 +228,14 @@ function drawGoldSprite(gc, gr) {
 
 function drawFallbackEntities() {
   noStroke();
-  // Stairs fallback: right triangle block
-  fill(0);
+  // Stairs fallback: descending steps pattern
   let sx = stairs.x * CELL_SIZE;
   let sy = STATS_H + stairs.y * CELL_SIZE;
-  rect(sx + 10, sy + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+  fill(0);
+  rect(sx + 8,  sy + 12, CELL_SIZE - 16, 8);
+  rect(sx + 16, sy + 24, CELL_SIZE - 24, 8);
+  rect(sx + 24, sy + 36, CELL_SIZE - 32, 8);
+  rect(sx + 32, sy + 48, CELL_SIZE - 40, 8);
 
   // Gold fallback: black square with white centre
   for (let g of goldItems) {
@@ -262,17 +258,17 @@ function drawFallbackEntities() {
   let py = STATS_H + player.y * CELL_SIZE;
   fill(0); rect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
   fill(255); rect(px + CELL_SIZE / 2 - 4, py + 22, 8, CELL_SIZE - 44);
+  rect(px + 22, py + CELL_SIZE / 2 - 4, CELL_SIZE - 44, 8);
 
-  if (spriteRenderFailed) {
-    statusMsg = "Sprite fallback active (Kindle compatibility mode).";
-  }
+  spriteRenderFailed = true;
 }
 
 function drawStatusBar() {
   fill(230); noStroke();
   rect(0, height - MSG_H, width, MSG_H);
   fill(0); textSize(18); textAlign(LEFT, CENTER);
-  text("  " + statusMsg, 0, height - MSG_H + MSG_H / 2);
+  let modeTag = spriteRenderFailed ? "[COMPAT] " : "";
+  text("  " + modeTag + statusMsg, 0, height - MSG_H + MSG_H / 2);
 }
 
 function drawGameOver() {
