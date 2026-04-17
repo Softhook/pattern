@@ -6,6 +6,7 @@
 
 'use strict';
 
+const APP_VERSION = 'Kindle Build v1.4.0';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -113,11 +114,11 @@ function drawStats() {
   fill(0); noStroke();
   rect(0, 0, width, STATS_H);
   fill(255); noStroke();
-  textSize(24); textAlign(LEFT, CENTER);
+  textSize(19); textAlign(LEFT, CENTER);
   // ♥ repeated for HP gives a visual count readable at e-ink contrast
   let hearts = '';
   for (let i = 0; i < player.hp; i++) hearts += '♥';
-  text(`  B${level}F   ${hearts}   $${player.gold}`, 0, STATS_H / 2);
+  text(`  ${APP_VERSION}  |  B${level}F  |  ${hearts}  |  $${player.gold}`, 0, STATS_H / 2);
 }
 
 function drawGrid() {
