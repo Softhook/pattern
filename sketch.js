@@ -6,7 +6,7 @@
 
 'use strict';
 
-const APP_VERSION = 'Kindle Build v1.6.2';
+const APP_VERSION = 'Kindle Build v1.6.3';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -50,7 +50,9 @@ function setup() {
   noLoop();
   textFont('monospace');
 
-  cols = floor(width  / CELL_SIZE);
+  // Use ceil for columns so grid fills the full visible width on Kindle.
+  // This removes the right-side "empty strip" caused by floor rounding.
+  cols = ceil(width / CELL_SIZE);
   rows = floor((height - STATS_H - MSG_H) / CELL_SIZE);
 
   generateLevel();
@@ -582,7 +584,7 @@ function keyPressed() {
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  cols = floor(width  / CELL_SIZE);
+  cols = ceil(width / CELL_SIZE);
   rows = floor((height - STATS_H - MSG_H) / CELL_SIZE);
   generateLevel();
 }
