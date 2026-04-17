@@ -219,9 +219,9 @@
 
   // ── 9. Font legibility ───────────────────────────────────────────────────────
 
-  // drawStatusBar() uses textSize(18) — a fixed value, not derived from CELL_SIZE.
+  // drawStatusBar() uses textSize(17) — a fixed value, not derived from CELL_SIZE.
   // Verify the sketch constant directly.
-  const STATUS_TEXT_SIZE = 18; // matches textSize(18) in drawStatusBar()
+  const STATUS_TEXT_SIZE = 17; // matches textSize(17) in drawStatusBar()
   assert(STATUS_TEXT_SIZE >= 16,
     '[A11y] Status bar text size ≥ 16 px',
     `textSize = ${STATUS_TEXT_SIZE} px`);
