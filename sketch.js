@@ -14,50 +14,28 @@ const ENEMY_DEFS = {
   skull: {
     hpDamage: 1,
     aggroRange: 6,
-    moveChance: 0.7,
-    draw: 'skull'
+    moveChance: 0.7
   },
   brute: {
     hpDamage: 2,
     aggroRange: 4,
-    moveChance: 0.5,
-    draw: 'brute'
+    moveChance: 0.5
   }
 };
 
 const ITEM_DEFS = {
   gold: {
-    draw: 'gold',
     pickupMessage: (item, game) => `Picked up ${item.amount} gold! Total: $${game.player.gold}`
   },
   potion: {
-    draw: 'potion',
     pickupMessage: (item, game, healed) => `Drank potion (+${healed} HP). HP: ${game.player.hp}`
   },
   weapon: {
-    draw: 'weapon',
     pickupMessage: (_item, game) => `Found weapon tier ${game.player.weaponTier}.`
   }
 };
 
 let game = null;
-
-// Legacy globals preserved for compatibility with existing tests/debug tooling.
-let grid = [];
-let cols = 0;
-let rows = 0;
-let player = null;
-let enemies = [];
-let goldItems = [];
-let stairs = { x: 0, y: 0 };
-let level = 1;
-let statusMsg = 'Tap a highlighted adjacent cell (diagonals allowed).';
-let gameOver = false;
-let spriteRenderFailed = false;
-let entityDrawError = '';
-let renderPhaseError = '';
-let gameCanvas = null;
-let lastTapCell = null;
 
 class GridEntity {
   constructor(x, y, kind) {
@@ -215,19 +193,8 @@ class Renderer {
     this.drawStats();
     this.drawGrid();
 
-    try {
-      this.game.spriteRenderFailed = false;
-      this.drawMoveHints();
-      this.drawEntitiesNice();
-      this.game.entityDrawError = '';
-      this.game.renderPhaseError = '';
-    } catch (err) {
-      this.game.spriteRenderFailed = true;
-      const msg = err && err.message ? err.message : 'unknown draw error';
-      this.game.entityDrawError = msg;
-      this.game.renderPhaseError = msg;
-      this.drawEntitiesCompat();
-    }
+    this.drawMoveHints();
+    this.drawEntitiesNice();
 
     this.drawStatusBar();
   }
@@ -293,71 +260,14 @@ class Renderer {
     this.drawPlayerSprite(this.game.player.x, this.game.player.y);
   }
 
-  drawEntitiesCompat() {
-    const g = this.game;
-
-    if (g.lastTapCell && g.lastTapCell.x >= 0 && g.lastTapCell.y >= 0 && g.lastTapCell.x < g.cols && g.lastTapCell.y < g.rows) {
-      const tx = g.lastTapCell.x * CELL_SIZE;
-      const ty = STATS_H + g.lastTapCell.y * CELL_SIZE;
-      noFill(); stroke(0); strokeWeight(3);
-      rect(tx + 4, ty + 4, CELL_SIZE - 8, CELL_SIZE - 8);
-    }
-
-    noStroke();
-
-    const drawBadge = (gx, gy) => {
-      const x = gx * CELL_SIZE;
-      const y = STATS_H + gy * CELL_SIZE;
-      fill(255);
-      rect(x + 6, y + 6, CELL_SIZE - 12, CELL_SIZE - 12);
-      fill(0);
-      rect(x + 6, y + 6, CELL_SIZE - 12, 4);
-      rect(x + 6, y + CELL_SIZE - 10, CELL_SIZE - 12, 4);
-      rect(x + 6, y + 6, 4, CELL_SIZE - 12);
-      rect(x + CELL_SIZE - 10, y + 6, 4, CELL_SIZE - 12);
-      return { x, y };
-    };
-
-    drawBadge(g.stairs.x, g.stairs.y);
-    fill(0);
-    rect(g.stairs.x * CELL_SIZE + 8, STATS_H + g.stairs.y * CELL_SIZE + 8, CELL_SIZE - 16, CELL_SIZE - 16);
-
-    for (const item of g.items) {
-      const p = drawBadge(item.x, item.y);
-      fill(0);
-      rect(p.x + 16, p.y + 16, CELL_SIZE - 32, CELL_SIZE - 32);
-      if (item.kind !== 'gold') {
-        fill(255);
-        rect(p.x + 26, p.y + 26, CELL_SIZE - 52, CELL_SIZE - 52);
-      }
-    }
-
-    for (const enemy of g.enemies) {
-      const p = drawBadge(enemy.x, enemy.y);
-      fill(0);
-      rect(p.x + 10, p.y + 10, CELL_SIZE - 20, CELL_SIZE - 20);
-      fill(255);
-      rect(p.x + 18, p.y + 24, CELL_SIZE - 36, 8);
-    }
-
-    const p = drawBadge(g.player.x, g.player.y);
-    fill(0);
-    rect(p.x + 10, p.y + 10, CELL_SIZE - 20, CELL_SIZE - 20);
-    fill(255);
-    rect(p.x + CELL_SIZE / 2 - 4, p.y + 22, 8, CELL_SIZE - 44);
-    rect(p.x + 22, p.y + CELL_SIZE / 2 - 4, CELL_SIZE - 44, 8);
-  }
-
   drawStatusBar() {
     const g = this.game;
     fill(230); noStroke();
     rect(0, height - MSG_H, width, MSG_H);
     fill(0); textSize(17); textAlign(LEFT, CENTER);
 
-    const modeTag = g.spriteRenderFailed ? '[COMPAT] ' : '';
-    const errPrefix = g.renderPhaseError ? `ERR:${g.renderPhaseError}  |  ` : '';
-    const counts = `P:${g.player.x},${g.player.y} E:${g.enemies.length} I:${g.items.length} S:${g.stairs.x},${g.stairs.y}`;
-    text(`  ${errPrefix}${modeTag}${g.statusMsg} | ${counts}`, 0, height - MSG_H + MSG_H / 2);
+    const counts = `P:${g.player.x},${g.player.y} E:${g.enemies.length} I:${g.items.length}`;
+    text(`  ${g.statusMsg} | ${counts}`, 0, height - MSG_H + MSG_H / 2);
   }
 
   drawGameOver() {
@@ -531,11 +441,6 @@ class DungeonGame {
     this.statusMsg = 'Tap a highlighted adjacent cell (diagonals allowed).';
     this.gameOver = false;
 
-    this.spriteRenderFailed = false;
-    this.entityDrawError = '';
-    this.renderPhaseError = '';
-    this.lastTapCell = null;
-
     this.levelGenerator = new LevelGenerator();
     this.renderer = new Renderer(this);
     this.canvas = null;
@@ -545,7 +450,6 @@ class DungeonGame {
     pixelDensity(1);
 
     this.canvas = createCanvas(windowWidth, windowHeight);
-    gameCanvas = this.canvas;
 
     this.canvas.attribute('role', 'application');
     this.canvas.attribute('aria-label', 'Dungeon roguelike. Tap a highlighted adjacent cell to move, diagonals are allowed, or use keyboard.');
@@ -565,7 +469,6 @@ class DungeonGame {
 
     this.recalculateDimensions();
     this.generateLevel();
-    this.syncLegacyGlobals();
   }
 
   recalculateDimensions() {
@@ -581,12 +484,10 @@ class DungeonGame {
     this.enemies = data.enemies;
     this.statusMsg = `Floor B${this.level}F - Tap a highlighted adjacent cell.`;
     this.gameOver = false;
-    this.syncLegacyGlobals();
   }
 
   draw() {
     this.renderer.drawFrame();
-    this.syncLegacyGlobals();
   }
 
   getValidMoves() {
@@ -695,7 +596,6 @@ class DungeonGame {
   }
 
   finishTurn() {
-    this.syncLegacyGlobals();
     redraw();
   }
 
@@ -710,7 +610,6 @@ class DungeonGame {
 
     const gx = floor(px / CELL_SIZE);
     const gy = floor((py - STATS_H) / CELL_SIZE);
-    this.lastTapCell = { x: gx, y: gy };
 
     const moves = this.getValidMoves();
     for (const m of moves) {
@@ -752,29 +651,25 @@ class DungeonGame {
     this.recalculateDimensions();
     this.generateLevel();
   }
-
-  syncLegacyGlobals() {
-    grid = this.grid;
-    cols = this.cols;
-    rows = this.rows;
-    player = this.player;
-    enemies = this.enemies;
-    goldItems = this.items.filter((i) => i.kind === 'gold');
-    stairs = this.stairs;
-    level = this.level;
-    statusMsg = this.statusMsg;
-    gameOver = this.gameOver;
-    spriteRenderFailed = this.spriteRenderFailed;
-    entityDrawError = this.entityDrawError;
-    renderPhaseError = this.renderPhaseError;
-    lastTapCell = this.lastTapCell;
-  }
 }
+
+function publishApi() {
+  window.dungeon = {
+    getGame: () => game,
+    move: (dx, dy) => game && game.move(dx, dy),
+    getValidMoves: () => game ? game.getValidMoves() : [],
+    handleTapAt: (px, py) => game ? game.handleTapAt(px, py) : false
+  };
+}
+
+// Publish immediately so tests/debug tooling can detect the API even before p5 setup.
+publishApi();
 
 // p5 lifecycle wrappers.
 function setup() {
   game = new DungeonGame();
   game.setup();
+  publishApi();
 }
 
 function draw() {
@@ -798,35 +693,4 @@ function keyPressed() {
 
 function windowResized() {
   if (game) game.windowResized();
-}
-
-// Legacy function wrappers retained for compatibility with tests/scripts.
-function move(dx, dy) {
-  if (game) game.move(dx, dy);
-}
-
-function getValidMoves() {
-  if (!game) return [];
-  return game.getValidMoves();
-}
-
-function handleTapAt(px, py) {
-  if (!game) return false;
-  return game.handleTapAt(px, py);
-}
-
-function drawPlayerSprite(gc, gr) {
-  if (game) game.renderer.drawPlayerSprite(gc, gr);
-}
-
-function drawEnemySprite(gc, gr) {
-  if (game) game.renderer.drawEnemySprite(gc, gr);
-}
-
-function drawStairsSprite(gc, gr) {
-  if (game) game.renderer.drawStairsSprite(gc, gr);
-}
-
-function drawGoldSprite(gc, gr) {
-  if (game) game.renderer.drawGoldSprite(gc, gr);
 }
