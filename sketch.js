@@ -6,7 +6,7 @@
 
 'use strict';
 
-const APP_VERSION = 'Kindle Build v1.6.0';
+const APP_VERSION = 'Kindle Build v1.6.1';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -404,8 +404,9 @@ function drawStatusBar() {
   fill(0); textSize(18); textAlign(LEFT, CENTER);
   let modeTag = spriteRenderFailed ? "[COMPAT] " : "";
   let counts = `P:${player.x},${player.y} E:${enemies.length} G:${goldItems.length} S:${stairs.x},${stairs.y}`;
-  let errTag = renderPhaseError ? `  |  ERR:${renderPhaseError}` : "";
-  text("  " + modeTag + statusMsg + "  |  " + counts + errTag, 0, height - MSG_H + MSG_H / 2);
+  // Put errors first so they remain visible on narrow/clipped status lines.
+  let errPrefix = renderPhaseError ? `ERR:${renderPhaseError}  |  ` : "";
+  text("  " + errPrefix + modeTag + statusMsg + "  |  " + counts, 0, height - MSG_H + MSG_H / 2);
 }
 
 function drawUltraSafeEntities() {
