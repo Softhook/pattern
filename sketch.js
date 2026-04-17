@@ -20,16 +20,29 @@ let level     = 1;
 let statusMsg = "Tap a highlighted cell to move. Find the stairs (<).";
 let gameOver  = false;
 let spriteRenderFailed = false;
+let gameCanvas = null;
+let lastTapCell = null;
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 function setup() {
   pixelDensity(1); // 1:1 CSS-px mapping — critical for e-ink sharpness & performance
 
   let cnv = createCanvas(windowWidth, windowHeight);
+  gameCanvas = cnv;
   // ARIA: expose the canvas as an interactive application to assistive technology
   cnv.attribute('role',       'application');
   cnv.attribute('aria-label', 'Dungeon roguelike. Tap a highlighted adjacent cell to move, or use arrow keys.');
   cnv.attribute('tabindex',   '0'); // make canvas focusable for keyboard input
+  cnv.style('touch-action', 'none');
+
+  // Kindle/Silk reliability: pointerdown catches stylus input even if mousePressed/touchStarted are inconsistent.
+  cnv.elt.addEventListener('pointerdown', function (evt) {
+    const rect = cnv.elt.getBoundingClientRect();
+    const px = evt.clientX - rect.left;
+    const py = evt.clientY - rect.top;
+    handleTapAt(px, py);
+    evt.preventDefault();
+  }, { passive: false });
 
   noLoop();
   textFont('monospace');
@@ -227,35 +240,63 @@ function drawGoldSprite(gc, gr) {
 }
 
 function drawFallbackEntities() {
+  // Mark the last tapped cell so interaction feedback is visible on e-ink.
+  if (lastTapCell && lastTapCell.x >= 0 && lastTapCell.y >= 0 && lastTapCell.x < cols && lastTapCell.y < rows) {
+    let tx = lastTapCell.x * CELL_SIZE;
+    let ty = STATS_H + lastTapCell.y * CELL_SIZE;
+    noFill();
+    stroke(0);
+    strokeWeight(3);
+    rect(tx + 4, ty + 4, CELL_SIZE - 8, CELL_SIZE - 8);
+  }
+
   noStroke();
-  // Stairs fallback: descending steps pattern
+
+  function drawBadge(gx, gy) {
+    let x = gx * CELL_SIZE;
+    let y = STATS_H + gy * CELL_SIZE;
+    fill(255);
+    rect(x + 6, y + 6, CELL_SIZE - 12, CELL_SIZE - 12);
+    fill(0);
+    rect(x + 6, y + 6, CELL_SIZE - 12, 4);
+    rect(x + 6, y + CELL_SIZE - 10, CELL_SIZE - 12, 4);
+    rect(x + 6, y + 6, 4, CELL_SIZE - 12);
+    rect(x + CELL_SIZE - 10, y + 6, 4, CELL_SIZE - 12);
+    return { x, y };
+  }
+
+  // Stairs fallback: descending steps pattern on a white badge.
   let sx = stairs.x * CELL_SIZE;
   let sy = STATS_H + stairs.y * CELL_SIZE;
+  drawBadge(stairs.x, stairs.y);
   fill(0);
   rect(sx + 8,  sy + 12, CELL_SIZE - 16, 8);
   rect(sx + 16, sy + 24, CELL_SIZE - 24, 8);
   rect(sx + 24, sy + 36, CELL_SIZE - 32, 8);
   rect(sx + 32, sy + 48, CELL_SIZE - 40, 8);
 
-  // Gold fallback: black square with white centre
+  // Gold fallback: black square with white centre on a white badge.
   for (let g of goldItems) {
     let x = g.x * CELL_SIZE;
     let y = STATS_H + g.y * CELL_SIZE;
+    drawBadge(g.x, g.y);
     fill(0); rect(x + 16, y + 16, CELL_SIZE - 32, CELL_SIZE - 32);
     fill(255); rect(x + 28, y + 28, CELL_SIZE - 56, CELL_SIZE - 56);
   }
 
-  // Enemy fallback: filled block with white eye bar
+  // Enemy fallback: filled block with white eye bar on a white badge.
   for (let e of enemies) {
     let x = e.x * CELL_SIZE;
     let y = STATS_H + e.y * CELL_SIZE;
+    drawBadge(e.x, e.y);
     fill(0); rect(x + 10, y + 10, CELL_SIZE - 20, CELL_SIZE - 20);
     fill(255); rect(x + 18, y + 24, CELL_SIZE - 36, 8);
   }
 
-  // Player fallback: solid black with white chest mark
+  // Player fallback: solid black with white cross on a white badge.
   let px = player.x * CELL_SIZE;
   let py = STATS_H + player.y * CELL_SIZE;
+  drawBadge(player.x, player.y);
   fill(0); rect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
   fill(255); rect(px + CELL_SIZE / 2 - 4, py + 22, 8, CELL_SIZE - 44);
   rect(px + 22, py + CELL_SIZE / 2 - 4, CELL_SIZE - 44, 8);
@@ -268,7 +309,8 @@ function drawStatusBar() {
   rect(0, height - MSG_H, width, MSG_H);
   fill(0); textSize(18); textAlign(LEFT, CENTER);
   let modeTag = spriteRenderFailed ? "[COMPAT] " : "";
-  text("  " + modeTag + statusMsg, 0, height - MSG_H + MSG_H / 2);
+  let counts = `P:${player.x},${player.y} E:${enemies.length} G:${goldItems.length} S:${stairs.x},${stairs.y}`;
+  text("  " + modeTag + statusMsg + "  |  " + counts, 0, height - MSG_H + MSG_H / 2);
 }
 
 function drawGameOver() {
@@ -357,16 +399,16 @@ function finishTurn() { redraw(); }
 
 // ── Input Handling ────────────────────────────────────────────────────────────
 
-// Primary: tap / stylus press on an adjacent highlighted cell
-function mousePressed() {
+function handleTapAt(px, py) {
   if (gameOver) {
     player.hp = 5; player.gold = 0; level = 1;
     generateLevel(); redraw();
     return false;
   }
 
-  let gx = floor(mouseX / CELL_SIZE);
-  let gy = floor((mouseY - STATS_H) / CELL_SIZE);
+  let gx = floor(px / CELL_SIZE);
+  let gy = floor((py - STATS_H) / CELL_SIZE);
+  lastTapCell = { x: gx, y: gy };
 
   let moves = getValidMoves();
   for (let m of moves) {
@@ -375,13 +417,20 @@ function mousePressed() {
       return false;
     }
   }
+
+  statusMsg = `Tap a highlighted adjacent cell. Last tap: ${gx},${gy}`;
+  redraw();
   return false;
+}
+
+// Primary: tap / stylus press on an adjacent highlighted cell
+function mousePressed() {
+  return handleTapAt(mouseX, mouseY);
 }
 
 // Touch fallback (finger touch, Kindle Scribe on-screen tap without stylus)
 function touchStarted() {
-  mousePressed();
-  return false; // prevent browser scroll
+  return handleTapAt(mouseX, mouseY);
 }
 
 // Keyboard fallback: arrow keys + WASD (keyboard cover, accessibility)
