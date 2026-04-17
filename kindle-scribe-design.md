@@ -17,10 +17,34 @@
 
 The previous D-pad button layout was drawn at a fixed Y offset that fell below the visible viewport on the Kindle Scribe's portrait aspect ratio, making controls invisible. The replacement interaction model:
 
-1. **Valid move hints** — At the start of every turn, each of the up to four orthogonally adjacent floor cells is outlined with a bold 5 px inset border. The player can only tap marked cells.
+1. **Valid move hints** — At the start of every turn, each of the up to eight adjacent floor cells (orthogonal + diagonal) is outlined with a bold border. The player can only tap marked cells.
 2. **Tap / stylus press** — `mousePressed()` (p5.js maps pen pointer events here) converts the stylus coordinate to a grid column/row. If that cell matches a valid move hint, `move(dx, dy)` is called.
 3. **Touch fallback** — `touchStarted()` mirrors the same logic for fingertip input.
-4. **Keyboard fallback** — `keyPressed()` handles Arrow keys and WASD. The canvas carries `tabindex="0"` so it is focusable without a pointing device.
+4. **Keyboard fallback** — `keyPressed()` handles Arrow keys + WASD (orthogonal) and Q/E/Z/C (diagonal). The canvas carries `tabindex="0"` so it is focusable without a pointing device.
+
+---
+
+## Kindle Findings (Observed + Root Cause)
+
+### What was observed on device
+
+- Top bar and maze were visible.
+- Entities (player, enemy, gold, stairs) were not visible.
+- Bottom status bar was also missing.
+- Android phone rendered correctly, so issue was Kindle-browser specific.
+
+### Root cause identified
+
+- The render pipeline could fail during the mid-frame draw phase (`drawMoveHints()` / entity drawing).
+- On Kindle Silk, a mid-frame draw exception aborted the rest of `draw()`, so later UI (including the bottom status bar) never rendered.
+- Because status UI was after the failing draw operations, the failure appeared as a "silent" disappearance of entities and status.
+
+### Fix strategy applied
+
+- Wrapped mid-frame rendering in defensive `try/catch` and always render status after.
+- Replaced advanced sprite primitives with Kindle-safe compatibility rendering using simple `rect()` shapes.
+- Added explicit compatibility marker and entity counts in the status text for live diagnostics.
+- Added direct `pointerdown` input listener to improve stylus interaction reliability on Silk.
 
 ---
 

@@ -138,6 +138,42 @@
       'color:orange;font-weight:bold', 'color:inherit');
   }
 
+  // ── 6b. Diagonal Movement Capability ────────────────────────────────────────
+
+  if (typeof move === 'function' && typeof player !== 'undefined' && typeof grid !== 'undefined') {
+    const originalPos = { x: player.x, y: player.y };
+    let testable = false;
+
+    // Pick a safe interior spot and clear a 3x3 area to make diagonal valid.
+    const tx = Math.min(Math.max(2, originalPos.x), cols - 3);
+    const ty = Math.min(Math.max(2, originalPos.y), rows - 3);
+    if (grid[tx] && grid[tx + 1] && grid[tx - 1]) {
+      testable = true;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          grid[tx + dx][ty + dy] = 0;
+        }
+      }
+
+      player.x = tx;
+      player.y = ty;
+
+      move(1, 1);
+      const diagonalWorked = player.x === tx + 1 && player.y === ty + 1;
+      assert(diagonalWorked,
+        '[Input] Diagonal movement is supported (player can move by dx=1, dy=1)');
+    }
+
+    if (!testable) {
+      console.warn('%c SKIP %c Could not safely construct diagonal movement test area',
+        'color:orange;font-weight:bold', 'color:inherit');
+    }
+
+    // Restore player position for non-invasive testing.
+    player.x = originalPos.x;
+    player.y = originalPos.y;
+  }
+
   // ── 7. State flags ───────────────────────────────────────────────────────────
 
   assert(typeof gameOver !== 'undefined',

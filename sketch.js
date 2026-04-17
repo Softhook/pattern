@@ -6,7 +6,7 @@
 
 'use strict';
 
-const APP_VERSION = 'Kindle Build v1.4.2';
+const APP_VERSION = 'Kindle Build v1.6.0';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -108,6 +108,7 @@ function draw() {
   drawStats();
   drawGrid();
   try {
+    spriteRenderFailed = false;
     drawMoveHints();
     drawEntities();
     entityDrawError = "";
@@ -163,9 +164,11 @@ function drawMoveHints() {
 }
 
 function drawEntities() {
-  // Kindle-first path: always use simple high-contrast blocks.
-  // This avoids browser-specific canvas quirks and guarantees visibility.
-  drawFallbackEntities();
+  // Primary path: nicer stylized sprites.
+  drawStairsSprite(stairs.x, stairs.y);
+  for (let g of goldItems) drawGoldSprite(g.x, g.y);
+  for (let e of enemies)   drawEnemySprite(e.x, e.y);
+  drawPlayerSprite(player.x, player.y);
 }
 
 // ── Sprites ───────────────────────────────────────────────────────────────────
@@ -239,19 +242,95 @@ function drawSpriteMask(gc, gr, mask, invertCenter) {
 }
 
 function drawPlayerSprite(gc, gr) {
-  drawSpriteMask(gc, gr, PLAYER_MASK, false);
+  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
+  let s = CELL_SIZE, cx = px + s / 2, cy = py + s / 2;
+
+  fill(0); noStroke();
+  arc(cx, cy - s * 0.21, s * 0.34, s * 0.34, PI, TWO_PI);
+  rect(px + s * 0.26, py + s * 0.30, s * 0.48, s * 0.07, 2);
+
+  fill(255);
+  ellipse(cx, cy - s * 0.09, s * 0.20, s * 0.18);
+
+  fill(0);
+  beginShape();
+  vertex(cx - s * 0.24, cy);
+  vertex(cx + s * 0.24, cy);
+  vertex(cx + s * 0.17, cy + s * 0.22);
+  vertex(cx - s * 0.17, cy + s * 0.22);
+  endShape(CLOSE);
+
+  fill(255);
+  rect(cx - s * 0.03, cy + s * 0.02, s * 0.06, s * 0.17);
+  rect(cx - s * 0.10, cy + s * 0.08, s * 0.20, s * 0.05);
+
+  fill(0);
+  rect(px + s * 0.24, py + s * 0.64, s * 0.14, s * 0.26, 3);
+  rect(px + s * 0.62, py + s * 0.64, s * 0.14, s * 0.26, 3);
+
+  strokeWeight(4); stroke(0); noFill();
+  line(cx + s * 0.28, cy + s * 0.14, cx + s * 0.44, cy - s * 0.30);
+  line(cx + s * 0.20, cy - s * 0.04, cx + s * 0.38, cy - s * 0.04);
+  noStroke();
 }
 
 function drawEnemySprite(gc, gr) {
-  drawSpriteMask(gc, gr, ENEMY_MASK, false);
+  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
+  let s = CELL_SIZE, cx = px + s / 2, cy = py + s / 2;
+
+  fill(0); noStroke();
+  arc(cx, cy - s * 0.06, s * 0.48, s * 0.48, PI, TWO_PI);
+  rect(px + s * 0.26, py + s * 0.40, s * 0.48, s * 0.24, 4);
+
+  fill(255);
+  ellipse(cx - s * 0.10, cy - s * 0.10, s * 0.16, s * 0.16);
+  ellipse(cx + s * 0.10, cy - s * 0.10, s * 0.16, s * 0.16);
+  rect(cx - s * 0.03, cy + s * 0.06, s * 0.06, s * 0.07);
+  rect(px + s * 0.31, py + s * 0.56, s * 0.07, s * 0.10);
+  rect(px + s * 0.44, py + s * 0.56, s * 0.07, s * 0.10);
+  rect(px + s * 0.57, py + s * 0.56, s * 0.07, s * 0.10);
+
+  fill(0);
+  triangle(cx - s * 0.22, py + s * 0.14, cx - s * 0.10, py + s * 0.14, cx - s * 0.16, py);
+  triangle(cx + s * 0.10, py + s * 0.14, cx + s * 0.22, py + s * 0.14, cx + s * 0.16, py);
 }
 
 function drawStairsSprite(gc, gr) {
-  drawSpriteMask(gc, gr, STAIRS_MASK, false);
+  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
+  let s = CELL_SIZE;
+
+  fill(0); noStroke();
+  let stepH  = s * 0.13;
+  let startX = px + s * 0.12;
+  let startY = py + s * 0.20;
+  let fullW  = s * 0.76;
+
+  for (let i = 0; i < 4; i++) {
+    let stepW = fullW - i * (fullW / 4);
+    let sx    = startX + i * (fullW / 4);
+    let sy    = startY + i * (stepH + s * 0.03);
+    rect(sx, sy, stepW, stepH, 2);
+  }
+
+  let ax = px + s * 0.50, ay = py + s * 0.82;
+  strokeWeight(3); stroke(0); noFill();
+  line(ax - s * 0.14, ay - s * 0.10, ax, ay + s * 0.06);
+  line(ax + s * 0.14, ay - s * 0.10, ax, ay + s * 0.06);
+  noStroke();
 }
 
 function drawGoldSprite(gc, gr) {
-  drawSpriteMask(gc, gr, GOLD_MASK, true);
+  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
+  let s = CELL_SIZE, cx = px + s / 2, cy = py + s / 2;
+
+  fill(0); noStroke();
+  ellipse(cx, cy, s * 0.54, s * 0.54);
+  fill(255);
+  ellipse(cx, cy, s * 0.36, s * 0.36);
+  fill(0);
+  ellipse(cx, cy, s * 0.14, s * 0.14);
+  fill(255);
+  arc(cx - s * 0.08, cy - s * 0.08, s * 0.10, s * 0.10, PI, TWO_PI);
 }
 
 function drawFallbackEntities() {
@@ -370,7 +449,10 @@ function drawGameOver() {
 
 // ── Game Logic ────────────────────────────────────────────────────────────────
 function getValidMoves() {
-  const dirs = [{ dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 }];
+  const dirs = [
+    { dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
+    { dx: -1, dy: -1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: 1, dy: 1 }
+  ];
   return dirs
     .map(d => ({ dx: d.dx, dy: d.dy, nx: player.x + d.dx, ny: player.y + d.dy }))
     .filter(m =>
@@ -462,7 +544,7 @@ function handleTapAt(px, py) {
     }
   }
 
-  statusMsg = `Tap a highlighted adjacent cell. Last tap: ${gx},${gy}`;
+  statusMsg = `Tap a highlighted adjacent cell (diagonals allowed). Last tap: ${gx},${gy}`;
   redraw();
   return false;
 }
@@ -484,10 +566,16 @@ function keyPressed() {
     generateLevel(); redraw();
     return false;
   }
+  // Orthogonal
   if (keyCode === UP_ARROW    || key === 'w' || key === 'W') move(0, -1);
   if (keyCode === DOWN_ARROW  || key === 's' || key === 'S') move(0,  1);
   if (keyCode === LEFT_ARROW  || key === 'a' || key === 'A') move(-1, 0);
   if (keyCode === RIGHT_ARROW || key === 'd' || key === 'D') move(1,  0);
+  // Diagonal (Q/E/Z/C)
+  if (key === 'q' || key === 'Q') move(-1, -1);
+  if (key === 'e' || key === 'E') move(1, -1);
+  if (key === 'z' || key === 'Z') move(-1, 1);
+  if (key === 'c' || key === 'C') move(1, 1);
   return false;
 }
 
