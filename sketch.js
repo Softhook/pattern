@@ -6,7 +6,7 @@
 
 'use strict';
 
-const APP_VERSION = 'Kindle Build v1.4.0';
+const APP_VERSION = 'Kindle Build v1.4.1';
 const CELL_SIZE = 72;   // px — well above the 44 px WCAG 2.5.5 min; suits EMR stylus
 const STATS_H   = 68;   // px — HUD bar at the top
 const MSG_H     = 50;   // px — status bar at the bottom
@@ -21,6 +21,7 @@ let level     = 1;
 let statusMsg = "Tap a highlighted cell to move. Find the stairs (<).";
 let gameOver  = false;
 let spriteRenderFailed = false;
+let entityDrawError = "";
 let gameCanvas = null;
 let lastTapCell = null;
 
@@ -106,7 +107,15 @@ function draw() {
   drawStats();
   drawGrid();
   drawMoveHints();
-  drawEntities();
+  try {
+    drawEntities();
+    entityDrawError = "";
+  } catch (err) {
+    spriteRenderFailed = true;
+    entityDrawError = err && err.message ? err.message : "unknown draw error";
+    // Absolute minimum safe fallback shapes.
+    drawUltraSafeEntities();
+  }
   drawStatusBar();
 }
 
@@ -311,7 +320,36 @@ function drawStatusBar() {
   fill(0); textSize(18); textAlign(LEFT, CENTER);
   let modeTag = spriteRenderFailed ? "[COMPAT] " : "";
   let counts = `P:${player.x},${player.y} E:${enemies.length} G:${goldItems.length} S:${stairs.x},${stairs.y}`;
-  text("  " + modeTag + statusMsg + "  |  " + counts, 0, height - MSG_H + MSG_H / 2);
+  let errTag = entityDrawError ? `  |  ERR:${entityDrawError}` : "";
+  text("  " + modeTag + statusMsg + "  |  " + counts + errTag, 0, height - MSG_H + MSG_H / 2);
+}
+
+function drawUltraSafeEntities() {
+  noStroke();
+
+  // Stairs
+  fill(0);
+  rect(stairs.x * CELL_SIZE + 8, STATS_H + stairs.y * CELL_SIZE + 8, CELL_SIZE - 16, CELL_SIZE - 16);
+
+  // Gold
+  for (let g of goldItems) {
+    let x = g.x * CELL_SIZE;
+    let y = STATS_H + g.y * CELL_SIZE;
+    fill(0);
+    rect(x + 16, y + 16, CELL_SIZE - 32, CELL_SIZE - 32);
+  }
+
+  // Enemies
+  for (let e of enemies) {
+    let x = e.x * CELL_SIZE;
+    let y = STATS_H + e.y * CELL_SIZE;
+    fill(0);
+    rect(x + 10, y + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+  }
+
+  // Player
+  fill(0);
+  rect(player.x * CELL_SIZE + 10, STATS_H + player.y * CELL_SIZE + 10, CELL_SIZE - 20, CELL_SIZE - 20);
 }
 
 function drawGameOver() {
