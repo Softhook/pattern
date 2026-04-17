@@ -19,6 +19,7 @@ let stairs    = { x: 0, y: 0 };
 let level     = 1;
 let statusMsg = "Tap a highlighted cell to move. Find the stairs (<).";
 let gameOver  = false;
+let spriteRenderFailed = false;
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 function setup() {
@@ -134,135 +135,137 @@ function drawMoveHints() {
 }
 
 function drawEntities() {
-  drawStairsSprite(stairs.x, stairs.y);
-  for (let g of goldItems) drawGoldSprite(g.x, g.y);
-  for (let e of enemies)   drawEnemySprite(e.x, e.y);
-  drawPlayerSprite(player.x, player.y);
+  try {
+    drawStairsSprite(stairs.x, stairs.y);
+    for (let g of goldItems) drawGoldSprite(g.x, g.y);
+    for (let e of enemies)   drawEnemySprite(e.x, e.y);
+    drawPlayerSprite(player.x, player.y);
+  } catch (_) {
+    // Kindle-safe fallback: simple hard rectangles if sprite rendering fails.
+    spriteRenderFailed = true;
+    drawFallbackEntities();
+  }
 }
 
 // ── Sprites ───────────────────────────────────────────────────────────────────
-// All sprites receive grid column (gc) and row (gr).
-// px/py = pixel top-left of cell; cx/cy = pixel centre. s = CELL_SIZE.
+// All sprites are pixel masks rendered with plain rect() calls for Silk reliability.
+
+const PLAYER_MASK = [
+  "00111100",
+  "01111110",
+  "01111110",
+  "00111100",
+  "00111100",
+  "01111110",
+  "01100110",
+  "11000011"
+];
+
+const ENEMY_MASK = [
+  "00111100",
+  "01111110",
+  "11111111",
+  "11011011",
+  "11111111",
+  "01100110",
+  "01100110",
+  "00111100"
+];
+
+const STAIRS_MASK = [
+  "11111111",
+  "01111111",
+  "00111111",
+  "00011111",
+  "00001111",
+  "00000111",
+  "00000011",
+  "00000001"
+];
+
+const GOLD_MASK = [
+  "00111100",
+  "01111110",
+  "11000011",
+  "11011011",
+  "11011011",
+  "11000011",
+  "01111110",
+  "00111100"
+];
+
+function drawSpriteMask(gc, gr, mask, invertCenter) {
+  let px = gc * CELL_SIZE;
+  let py = STATS_H + gr * CELL_SIZE;
+  let s = CELL_SIZE;
+  let cell = s / 8;
+
+  noStroke();
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      if (mask[r][c] === "1") {
+        fill(0);
+        rect(px + c * cell, py + r * cell, cell + 0.3, cell + 0.3);
+      }
+    }
+  }
+
+  // Optional center cut-out for contrast detail (used by coin)
+  if (invertCenter) {
+    fill(255);
+    rect(px + 3 * cell, py + 3 * cell, 2 * cell, 2 * cell);
+  }
+}
 
 function drawPlayerSprite(gc, gr) {
-  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
-  let s = CELL_SIZE, cx = px + s / 2, cy = py + s / 2;
-
-  fill(0); noStroke();
-
-  // Helmet dome
-  arc(cx, cy - s * 0.21, s * 0.34, s * 0.34, PI, TWO_PI);
-  // Helmet brim (horizontal bar)
-  rect(px + s * 0.26, py + s * 0.30, s * 0.48, s * 0.07, 2);
-
-  // Face (white oval inside helmet)
-  fill(255);
-  ellipse(cx, cy - s * 0.09, s * 0.20, s * 0.18);
-
-  // Body / breastplate (trapezoid — wider at shoulders)
-  fill(0);
-  beginShape();
-  vertex(cx - s * 0.24, cy - s * 0.00);
-  vertex(cx + s * 0.24, cy - s * 0.00);
-  vertex(cx + s * 0.17, cy + s * 0.22);
-  vertex(cx - s * 0.17, cy + s * 0.22);
-  endShape(CLOSE);
-  // Breastplate cross detail (white)
-  fill(255);
-  rect(cx - s * 0.03, cy + s * 0.02, s * 0.06, s * 0.17);
-  rect(cx - s * 0.10, cy + s * 0.08, s * 0.20, s * 0.05);
-
-  // Legs
-  fill(0);
-  rect(px + s * 0.24, py + s * 0.64, s * 0.14, s * 0.26, 3);
-  rect(px + s * 0.62, py + s * 0.64, s * 0.14, s * 0.26, 3);
-
-  // Sword (right side) — blade + crossguard
-  strokeWeight(4); stroke(0); noFill();
-  line(cx + s * 0.28, cy + s * 0.14, cx + s * 0.44, cy - s * 0.30); // blade
-  line(cx + s * 0.20, cy - s * 0.04, cx + s * 0.38, cy - s * 0.04); // guard
-  noStroke();
+  drawSpriteMask(gc, gr, PLAYER_MASK, false);
 }
 
 function drawEnemySprite(gc, gr) {
-  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
-  let s = CELL_SIZE, cx = px + s / 2, cy = py + s / 2;
-
-  fill(0); noStroke();
-
-  // Skull dome (filled arc)
-  arc(cx, cy - s * 0.06, s * 0.48, s * 0.48, PI, TWO_PI);
-
-  // Cheekbones / jaw — rounded rectangle
-  rect(px + s * 0.26, py + s * 0.40, s * 0.48, s * 0.24, 4);
-
-  // Eye sockets (white)
-  fill(255);
-  ellipse(cx - s * 0.10, cy - s * 0.10, s * 0.16, s * 0.16);
-  ellipse(cx + s * 0.10, cy - s * 0.10, s * 0.16, s * 0.16);
-
-  // Nose hole (white)
-  rect(cx - s * 0.03, cy + s * 0.06, s * 0.06, s * 0.07);
-
-  // Teeth — white gaps cut into jaw
-  fill(255);
-  rect(px + s * 0.31, py + s * 0.56, s * 0.07, s * 0.10);
-  rect(px + s * 0.44, py + s * 0.56, s * 0.07, s * 0.10);
-  rect(px + s * 0.57, py + s * 0.56, s * 0.07, s * 0.10);
-
-  // Horns (two filled triangles above dome)
-  fill(0);
-  triangle(cx - s * 0.22, py + s * 0.14,
-           cx - s * 0.10, py + s * 0.14,
-           cx - s * 0.16, py + s * 0.00);
-  triangle(cx + s * 0.10, py + s * 0.14,
-           cx + s * 0.22, py + s * 0.14,
-           cx + s * 0.16, py + s * 0.00);
+  drawSpriteMask(gc, gr, ENEMY_MASK, false);
 }
 
 function drawStairsSprite(gc, gr) {
-  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
-  let s = CELL_SIZE;
-
-  fill(0); noStroke();
-
-  // Four descending steps — each shifts right and down
-  let stepH  = s * 0.13;
-  let startX = px + s * 0.12;
-  let startY = py + s * 0.20;
-  let fullW  = s * 0.76;
-
-  for (let i = 0; i < 4; i++) {
-    let stepW = fullW - i * (fullW / 4);
-    let sx    = startX + i * (fullW / 4);
-    let sy    = startY + i * (stepH + s * 0.03);
-    rect(sx, sy, stepW, stepH, 2);
-  }
-
-  // Down-arrow below steps
-  let ax = px + s * 0.50, ay = py + s * 0.82;
-  strokeWeight(3); stroke(0); noFill();
-  line(ax - s * 0.14, ay - s * 0.10, ax, ay + s * 0.06);
-  line(ax + s * 0.14, ay - s * 0.10, ax, ay + s * 0.06);
-  noStroke();
+  drawSpriteMask(gc, gr, STAIRS_MASK, false);
 }
 
 function drawGoldSprite(gc, gr) {
-  let px = gc * CELL_SIZE, py = STATS_H + gr * CELL_SIZE;
-  let s = CELL_SIZE, cx = px + s / 2, cy = py + s / 2;
+  drawSpriteMask(gc, gr, GOLD_MASK, true);
+}
 
-  fill(0); noStroke();
-  // Coin outer circle
-  ellipse(cx, cy, s * 0.54, s * 0.54);
-  // Inner ring (white)
-  fill(255);
-  ellipse(cx, cy, s * 0.36, s * 0.36);
-  // Centre dot (black)
+function drawFallbackEntities() {
+  noStroke();
+  // Stairs fallback: right triangle block
   fill(0);
-  ellipse(cx, cy, s * 0.14, s * 0.14);
-  // Shine arc (white highlight, top-left)
-  fill(255);
-  arc(cx - s * 0.08, cy - s * 0.08, s * 0.10, s * 0.10, PI, TWO_PI);
+  let sx = stairs.x * CELL_SIZE;
+  let sy = STATS_H + stairs.y * CELL_SIZE;
+  rect(sx + 10, sy + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+
+  // Gold fallback: black square with white centre
+  for (let g of goldItems) {
+    let x = g.x * CELL_SIZE;
+    let y = STATS_H + g.y * CELL_SIZE;
+    fill(0); rect(x + 16, y + 16, CELL_SIZE - 32, CELL_SIZE - 32);
+    fill(255); rect(x + 28, y + 28, CELL_SIZE - 56, CELL_SIZE - 56);
+  }
+
+  // Enemy fallback: filled block with white eye bar
+  for (let e of enemies) {
+    let x = e.x * CELL_SIZE;
+    let y = STATS_H + e.y * CELL_SIZE;
+    fill(0); rect(x + 10, y + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+    fill(255); rect(x + 18, y + 24, CELL_SIZE - 36, 8);
+  }
+
+  // Player fallback: solid black with white chest mark
+  let px = player.x * CELL_SIZE;
+  let py = STATS_H + player.y * CELL_SIZE;
+  fill(0); rect(px + 10, py + 10, CELL_SIZE - 20, CELL_SIZE - 20);
+  fill(255); rect(px + CELL_SIZE / 2 - 4, py + 22, 8, CELL_SIZE - 44);
+
+  if (spriteRenderFailed) {
+    statusMsg = "Sprite fallback active (Kindle compatibility mode).";
+  }
 }
 
 function drawStatusBar() {
