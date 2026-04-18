@@ -1,7 +1,7 @@
 'use strict';
 
 const APP_VERSION = 'v2.0.0';
-const CELL_SIZE = 72;
+let CELL_SIZE = 72; // changes to zoom out each level
 const STATS_H = 68;
 const MSG_H = 50;
 const BASE_VISION_RADIUS = 2;
@@ -24,8 +24,8 @@ const KEY_MAP = {
 };
 
 const ENEMY_DEFS = {
-  skull:  { hpDamage: 1, aggroRange: 6, moveChance: 0.7 },
-  brute:  { hpDamage: 2, aggroRange: 4, moveChance: 0.5 },
+  skull: { hpDamage: 1, aggroRange: 6, moveChance: 0.7 },
+  brute: { hpDamage: 2, aggroRange: 4, moveChance: 0.5 },
   archer: { hpDamage: 1, aggroRange: 3, moveChance: 0, isRanged: true, range: 3 }
 };
 
@@ -56,10 +56,10 @@ const ITEM_DEFS = {
 };
 
 const ITEM_TABLE = [
-  { cutoff: 0.70, kind: 'gold',   amt: (lvl) => 5 + lvl * 2 },
+  { cutoff: 0.70, kind: 'gold', amt: (lvl) => 5 + lvl * 2 },
   { cutoff: 0.88, kind: 'potion', amt: () => 2 },
   { cutoff: 0.96, kind: 'weapon', amt: () => 1 },
-  { cutoff: 1.00, kind: 'torch',  amt: () => 1 }
+  { cutoff: 1.00, kind: 'torch', amt: () => 1 }
 ];
 
 let game = null;
@@ -114,13 +114,13 @@ class LevelGenerator {
       }
     }
     if (!pCell) pCell = { x: 1, y: 1 };
-    
+
     player.x = pCell.x; player.y = pCell.y;
     grid[player.x][player.y] = 0;
     if (player.x + 1 < cols - 1) grid[player.x + 1][player.y] = 0;
     if (player.y + 1 < rows - 1) grid[player.x][player.y + 1] = 0;
 
-    const items  = this._placeItems(grid, cols, rows, level, stairs);
+    const items = this._placeItems(grid, cols, rows, level, stairs);
     const enemies = this._placeEnemies(grid, cols, rows, level);
 
     return { grid, stairs, items, enemies };
@@ -268,9 +268,9 @@ class Renderer {
     const g = this.game;
     fill(255); noStroke(); rect(0, 0, width, height);
     fill(0); textAlign(CENTER, CENTER);
-    textSize(34); text('DUNGEON CLAIMS ANOTHER SOUL', width / 2, height / 2 - 50);
-    textSize(22); text(`Level ${g.level} | Gold: $${g.player.gold}`, width / 2, height / 2 + 10);
-    textSize(18); text('Tap anywhere or press any key to restart', width / 2, height / 2 + 60);
+    textSize(34); text('THE DUNGEON CLAIMS ANOTHER ADVENTURER', width / 2, height / 2 - 50);
+    textSize(22); text(`Level ${g.level} | Gold: £${g.player.gold}`, width / 2, height / 2 + 10);
+    textSize(18); text('Tap or press any key to restart', width / 2, height / 2 + 60);
   }
 
   _drawPlayer(gc, gr) {
@@ -315,7 +315,7 @@ class Renderer {
     fill(255);
     rect(cx - s * 0.15, cy + s * 0.05, s * 0.3, s * 0.08);
     stroke(0); noFill(); strokeWeight(3);
-    arc(px + s * 0.7, cy + s * 0.1, s * 0.4, s * 0.4, -PI/2, PI/2);
+    arc(px + s * 0.7, cy + s * 0.1, s * 0.4, s * 0.4, -PI / 2, PI / 2);
     line(px + s * 0.7, cy - s * 0.1, px + s * 0.7, cy + s * 0.3);
     noStroke();
   }
@@ -348,7 +348,7 @@ class Renderer {
     const { s, cx, cy } = this._cell(gc, gr);
     fill(0); noStroke(); ellipse(cx, cy, s * 0.54, s * 0.54);
     fill(255); ellipse(cx, cy, s * 0.36, s * 0.36);
-    fill(0);   ellipse(cx, cy, s * 0.14, s * 0.14);
+    fill(0); ellipse(cx, cy, s * 0.14, s * 0.14);
     fill(255); arc(cx - s * 0.08, cy - s * 0.08, s * 0.10, s * 0.10, PI, TWO_PI);
   }
 
@@ -383,9 +383,9 @@ class Renderer {
 
   // Legacy aliases for test compatibility
   drawPlayerSprite(gc, gr) { this._drawPlayer(gc, gr); }
-  drawEnemySprite(gc, gr)  { this._drawSkull(gc, gr); }
+  drawEnemySprite(gc, gr) { this._drawSkull(gc, gr); }
   drawStairsSprite(gc, gr) { this._drawStairs(gc, gr); }
-  drawGoldSprite(gc, gr)   { this._drawGold(gc, gr); }
+  drawGoldSprite(gc, gr) { this._drawGold(gc, gr); }
 }
 
 // ─── Game ────────────────────────────────────────────────────
@@ -442,7 +442,9 @@ class DungeonGame {
   _restart() {
     this.player.reset();
     this.level = 1;
+    CELL_SIZE = 72;
     this.torchMovesRemaining = 0;
+    this._recalc();
     this._genLevel();
     redraw();
   }
@@ -490,6 +492,8 @@ class DungeonGame {
     // Stairs
     if (nx === this.stairs.x && ny === this.stairs.y) {
       this.level++;
+      CELL_SIZE = max(10, CELL_SIZE - 2);
+      this._recalc();
       this._genLevel();
       return void redraw();
     }
@@ -506,7 +510,7 @@ class DungeonGame {
     let dx = abs(x1 - x0), dy = abs(y1 - y0);
     let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
     let err = dx - dy;
-    while(true) {
+    while (true) {
       if (this.grid[x0][y0] === 1) return false;
       if (x0 === x1 && y0 === y1) return true;
       let e2 = 2 * err;
@@ -534,8 +538,8 @@ class DungeonGame {
       if (random() > e.spec.moveChance) continue;
       const dx = Math.sign(this.player.x - e.x);
       const dy = Math.sign(this.player.y - e.y);
-      if      (this._walkable(e.x + dx, e.y))      e.x += dx;
-      else if (this._walkable(e.x, e.y + dy))      e.y += dy;
+      if (this._walkable(e.x + dx, e.y)) e.x += dx;
+      else if (this._walkable(e.x, e.y + dy)) e.y += dy;
       else if (this._walkable(e.x + dx, e.y + dy)) { e.x += dx; e.y += dy; }
     }
     if (this.gameOver) this.statusMsg = 'You have been defeated...';
@@ -588,7 +592,7 @@ class DungeonGame {
     if (this.gameOver) return this._restart(), false;
     const dir = KEY_MAP[key] || KEY_MAP[
       keyCode === UP_ARROW ? 'ArrowUp' : keyCode === DOWN_ARROW ? 'ArrowDown'
-      : keyCode === LEFT_ARROW ? 'ArrowLeft' : keyCode === RIGHT_ARROW ? 'ArrowRight' : ''
+        : keyCode === LEFT_ARROW ? 'ArrowLeft' : keyCode === RIGHT_ARROW ? 'ArrowRight' : ''
     ];
     if (dir) this.move(...dir);
     return false;
@@ -614,9 +618,9 @@ function publishApi() {
 
 publishApi();
 
-function setup()         { game = new DungeonGame(); game.setup(); publishApi(); }
-function draw()          { game?.draw(); }
-function mousePressed()  { return game?.handleTapAt(mouseX, mouseY) ?? false; }
-function touchStarted()  { return game?.handleTapAt(mouseX, mouseY) ?? false; }
-function keyPressed()    { return game?.keyPressed() ?? false; }
+function setup() { game = new DungeonGame(); game.setup(); publishApi(); }
+function draw() { game?.draw(); }
+function mousePressed() { return game?.handleTapAt(mouseX, mouseY) ?? false; }
+function touchStarted() { return game?.handleTapAt(mouseX, mouseY) ?? false; }
+function keyPressed() { return game?.keyPressed() ?? false; }
 function windowResized() { game?.windowResized(); }
