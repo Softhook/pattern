@@ -169,7 +169,7 @@ class LevelGenerator {
     for (let i = 0; i < 25; i++) {
       const x = floor(random(minCoord, cols - 1));
       const y = floor(random(minCoord, rows - 1));
-      if (grid[x]?.[y] === 0) return { x, y };
+      if (grid[x] && grid[x][y] === 0) return { x, y };
     }
     return null;
   }
@@ -561,7 +561,7 @@ class DungeonGame {
   }
 
   isDiscovered(x, y) {
-    return !!(this.discovered[x]?.[y]);
+    return !!(this.discovered[x] && this.discovered[x][y]);
   }
 
   _reveal() {
@@ -610,17 +610,17 @@ class DungeonGame {
 function publishApi() {
   window.dungeon = {
     getGame: () => game,
-    move: (dx, dy) => game?.move(dx, dy),
-    getValidMoves: () => game?.getValidMoves() ?? [],
-    handleTapAt: (px, py) => game?.handleTapAt(px, py) ?? false
+    move: (dx, dy) => game ? game.move(dx, dy) : undefined,
+    getValidMoves: () => game ? game.getValidMoves() : [],
+    handleTapAt: (px, py) => game ? game.handleTapAt(px, py) : false
   };
 }
 
 publishApi();
 
 function setup() { game = new DungeonGame(); game.setup(); publishApi(); }
-function draw() { game?.draw(); }
-function mousePressed() { return game?.handleTapAt(mouseX, mouseY) ?? false; }
-function touchStarted() { return game?.handleTapAt(mouseX, mouseY) ?? false; }
-function keyPressed() { return game?.keyPressed() ?? false; }
-function windowResized() { game?.windowResized(); }
+function draw() { if (game) game.draw(); }
+function mousePressed() { return game ? game.handleTapAt(mouseX, mouseY) : false; }
+function touchStarted() { return game ? game.handleTapAt(mouseX, mouseY) : false; }
+function keyPressed() { return game ? game.keyPressed() : false; }
+function windowResized() { if (game) game.windowResized(); }
