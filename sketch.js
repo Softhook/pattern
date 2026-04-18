@@ -1,9 +1,12 @@
 'use strict';
 
-const APP_VERSION = 'Kindle Build v2.0.0';
+const APP_VERSION = 'v2.0.0';
 const CELL_SIZE = 72;
 const STATS_H = 68;
 const MSG_H = 50;
+const BASE_VISION_RADIUS = 2;
+const TORCH_VISION_RADIUS = 3;
+const TORCH_DURATION_MOVES = 30;
 
 const DIRECTIONS = [
   { dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
@@ -25,13 +28,16 @@ const ENEMY_DEFS = {
 
 const ITEM_DEFS = {
   gold: {
-    pickupMessage: (item, game) => `Picked up ${item.amount} gold! Total: $${game.player.gold}`
+    pickupMessage: (item, game) => `Picked up ${item.amount} gold!`
   },
   potion: {
-    pickupMessage: (item, game, healed) => `Drank potion (+${healed} HP). HP: ${game.player.hp}`
+    pickupMessage: (item, game, healed) => `Drank potion (+${healed} HP)`
   },
   weapon: {
-    pickupMessage: (_item, game) => `Found weapon tier ${game.player.weaponTier}.`
+    pickupMessage: (_item, game) => `Found weapon ${game.player.weaponTier}.`
+  },
+  torch: {
+    pickupMessage: (_item, _game) => `Lit torch! Vision +1 for ${TORCH_DURATION_MOVES} moves.`
   }
 };
 
@@ -145,8 +151,10 @@ class LevelGenerator {
         items.push(new ItemEntity(floorCell.x, floorCell.y, 'gold', amount));
       } else if (roll < 0.88) {
         items.push(new ItemEntity(floorCell.x, floorCell.y, 'potion', 2));
-      } else {
+      } else if (roll < 0.96) {
         items.push(new ItemEntity(floorCell.x, floorCell.y, 'weapon', 1));
+      } else {
+        items.push(new ItemEntity(floorCell.x, floorCell.y, 'torch', 1));
       }
     }
 
@@ -209,7 +217,8 @@ class Renderer {
     let hearts = '';
     for (let i = 0; i < g.player.hp; i++) hearts += '♥';
 
-    text(`  ${APP_VERSION} | B${g.level}F | ${hearts} | $${g.player.gold} | W:${g.player.weaponTier}`, 0, STATS_H / 2);
+    const torchStatus = g.torchMovesRemaining > 0 ? g.torchMovesRemaining : '-';
+    text(`  ${hearts} | Level ${g.level} | £${g.player.gold} | W:${g.player.weaponTier} | T:${torchStatus}`, 0, STATS_H / 2);
   }
 
   drawGrid() {
@@ -218,25 +227,47 @@ class Renderer {
       for (let j = 0; j < g.rows; j++) {
         const x = i * CELL_SIZE;
         const y = STATS_H + j * CELL_SIZE;
-        if (g.grid[i][j] === 1) {
-          fill(0); noStroke();
-          rect(x, y, CELL_SIZE, CELL_SIZE);
-        } else {
-          noFill(); stroke(200); strokeWeight(1);
-          rect(x, y, CELL_SIZE, CELL_SIZE);
+
+        const isVisible = g.isVisibleCell(i, j);
+        const isDiscovered = g.isDiscoveredCell(i, j);
+        const isWall = g.grid[i][j] === 1;
+
+        if (isVisible) {
+          if (isWall) {
+            fill(0); noStroke();
+            rect(x, y, CELL_SIZE, CELL_SIZE);
+          } else {
+            noFill(); stroke(0); strokeWeight(1);
+            rect(x, y, CELL_SIZE, CELL_SIZE);
+          }
+          continue;
         }
+
+        if (isDiscovered) {
+          if (isWall) {
+            fill(0); noStroke();
+            rect(x, y, CELL_SIZE, CELL_SIZE);
+          } else {
+            fill(255); stroke(0); strokeWeight(1);
+            rect(x, y, CELL_SIZE, CELL_SIZE);
+          }
+          continue;
+        }
+
+        fill(0); noStroke();
+        rect(x, y, CELL_SIZE, CELL_SIZE);
       }
     }
   }
 
   drawMoveHints() {
-    const moves = this.game.getValidMoves();
+    const moves = this.game.getValidMoves().filter((m) => this.game.isVisibleCell(m.nx, m.ny));
     noFill();
 
     for (const m of moves) {
       const isDiagonal = abs(m.dx) === 1 && abs(m.dy) === 1;
       stroke(0);
-      strokeWeight(isDiagonal ? 3 : 5);
+      strokeWeight(3);
       const x = m.nx * CELL_SIZE + 6;
       const y = STATS_H + m.ny * CELL_SIZE + 6;
       rect(x, y, CELL_SIZE - 12, CELL_SIZE - 12);
@@ -244,15 +275,20 @@ class Renderer {
   }
 
   drawEntitiesNice() {
-    this.drawStairsSprite(this.game.stairs.x, this.game.stairs.y);
+    if (this.game.isVisibleCell(this.game.stairs.x, this.game.stairs.y)) {
+      this.drawStairsSprite(this.game.stairs.x, this.game.stairs.y);
+    }
 
     for (const item of this.game.items) {
+      if (!this.game.isVisibleCell(item.x, item.y)) continue;
       if (item.kind === 'gold') this.drawGoldSprite(item.x, item.y);
       if (item.kind === 'potion') this.drawPotionSprite(item.x, item.y);
       if (item.kind === 'weapon') this.drawWeaponSprite(item.x, item.y);
+      if (item.kind === 'torch') this.drawTorchSprite(item.x, item.y);
     }
 
     for (const enemy of this.game.enemies) {
+      if (!this.game.isVisibleCell(enemy.x, enemy.y)) continue;
       if (enemy.kind === 'brute') this.drawBruteSprite(enemy.x, enemy.y);
       else this.drawEnemySprite(enemy.x, enemy.y);
     }
@@ -262,12 +298,10 @@ class Renderer {
 
   drawStatusBar() {
     const g = this.game;
-    fill(230); noStroke();
+    fill(255); noStroke();
     rect(0, height - MSG_H, width, MSG_H);
     fill(0); textSize(17); textAlign(LEFT, CENTER);
-
-    const counts = `P:${g.player.x},${g.player.y} E:${g.enemies.length} I:${g.items.length}`;
-    text(`  ${g.statusMsg} | ${counts}`, 0, height - MSG_H + MSG_H / 2);
+    text(`  ${g.statusMsg}`, 0, height - MSG_H + MSG_H / 2);
   }
 
   drawGameOver() {
@@ -278,7 +312,7 @@ class Renderer {
     textSize(34);
     text('DUNGEON CLAIMS ANOTHER SOUL', width / 2, height / 2 - 50);
     textSize(22);
-    text(`Floor B${g.level}F | Gold: $${g.player.gold}`, width / 2, height / 2 + 10);
+    text(`Level ${g.level} | Gold: $${g.player.gold}`, width / 2, height / 2 + 10);
     textSize(18);
     text('Tap anywhere or press any key to restart', width / 2, height / 2 + 60);
   }
@@ -426,6 +460,25 @@ class Renderer {
     line(px + s * 0.65, py + s * 0.35, px + s * 0.80, py + s * 0.20);
     noStroke();
   }
+
+  drawTorchSprite(gc, gr) {
+    const px = gc * CELL_SIZE;
+    const py = STATS_H + gr * CELL_SIZE;
+    const s = CELL_SIZE;
+    const cx = px + s / 2;
+
+    fill(0); noStroke();
+    rect(cx - s * 0.05, py + s * 0.26, s * 0.10, s * 0.42);
+    rect(cx - s * 0.10, py + s * 0.64, s * 0.20, s * 0.08);
+
+    fill(255);
+    beginShape();
+    vertex(cx, py + s * 0.12);
+    vertex(cx + s * 0.12, py + s * 0.28);
+    vertex(cx, py + s * 0.34);
+    vertex(cx - s * 0.12, py + s * 0.28);
+    endShape(CLOSE);
+  }
 }
 
 class DungeonGame {
@@ -438,8 +491,11 @@ class DungeonGame {
     this.enemies = [];
     this.items = [];
     this.stairs = new StairsEntity(0, 0);
-    this.statusMsg = 'Tap a highlighted adjacent cell (diagonals allowed).';
+    this.statusMsg = '';
     this.gameOver = false;
+    this.torchMovesRemaining = 0;
+    this.discovered = [];
+    this.hasShownBootVersion = false;
 
     this.levelGenerator = new LevelGenerator();
     this.renderer = new Renderer(this);
@@ -448,6 +504,7 @@ class DungeonGame {
 
   setup() {
     pixelDensity(1);
+    noSmooth();
 
     this.canvas = createCanvas(windowWidth, windowHeight);
 
@@ -482,7 +539,14 @@ class DungeonGame {
     this.stairs = data.stairs;
     this.items = data.items;
     this.enemies = data.enemies;
-    this.statusMsg = `Floor B${this.level}F - Tap a highlighted adjacent cell.`;
+    this.discovered = this.createDiscoveredGrid();
+    this.revealAroundPlayer();
+    if (!this.hasShownBootVersion) {
+      this.statusMsg = `${APP_VERSION} | Level ${this.level}`;
+      this.hasShownBootVersion = true;
+    } else {
+      this.statusMsg = `Level ${this.level}`;
+    }
     this.gameOver = false;
   }
 
@@ -542,8 +606,14 @@ class DungeonGame {
 
     this.player.x = nx;
     this.player.y = ny;
+    this.consumeTorchChargeIfActive();
+    this.revealAroundPlayer();
 
-    if (!this.statusMsg.startsWith('Picked') && !this.statusMsg.startsWith('Drank') && !this.statusMsg.startsWith('Found')) {
+    if (!this.statusMsg.startsWith('Picked')
+      && !this.statusMsg.startsWith('Drank')
+      && !this.statusMsg.startsWith('Found')
+      && !this.statusMsg.startsWith('Lit torch')
+      && !this.statusMsg.startsWith('Torch burned out')) {
       this.statusMsg = '';
     }
 
@@ -569,6 +639,13 @@ class DungeonGame {
     if (item.kind === 'weapon') {
       this.player.weaponTier += 1;
       this.statusMsg = ITEM_DEFS.weapon.pickupMessage(item, this);
+      return;
+    }
+
+    if (item.kind === 'torch') {
+      this.torchMovesRemaining = TORCH_DURATION_MOVES;
+      this.statusMsg = ITEM_DEFS.torch.pickupMessage(item, this);
+      this.revealAroundPlayer();
     }
   }
 
@@ -595,6 +672,53 @@ class DungeonGame {
     return x >= 0 && y >= 0 && x < this.cols && y < this.rows && this.grid[x][y] === 0;
   }
 
+  createDiscoveredGrid() {
+    const cells = [];
+    for (let i = 0; i < this.cols; i++) {
+      cells[i] = [];
+      for (let j = 0; j < this.rows; j++) {
+        cells[i][j] = false;
+      }
+    }
+    return cells;
+  }
+
+  getVisionRadius() {
+    return this.torchMovesRemaining > 0 ? TORCH_VISION_RADIUS : BASE_VISION_RADIUS;
+  }
+
+  isVisibleCell(x, y) {
+    const radius = this.getVisionRadius();
+    return x >= 0
+      && y >= 0
+      && x < this.cols
+      && y < this.rows
+      && abs(x - this.player.x) <= radius
+      && abs(y - this.player.y) <= radius;
+  }
+
+  isDiscoveredCell(x, y) {
+    return !!(this.discovered[x] && this.discovered[x][y]);
+  }
+
+  revealAroundPlayer() {
+    const radius = this.getVisionRadius();
+    for (let x = this.player.x - radius; x <= this.player.x + radius; x++) {
+      for (let y = this.player.y - radius; y <= this.player.y + radius; y++) {
+        if (x < 0 || y < 0 || x >= this.cols || y >= this.rows) continue;
+        this.discovered[x][y] = true;
+      }
+    }
+  }
+
+  consumeTorchChargeIfActive() {
+    if (this.torchMovesRemaining <= 0) return;
+    this.torchMovesRemaining = max(0, this.torchMovesRemaining - 1);
+    if (this.torchMovesRemaining === 0) {
+      this.statusMsg = 'Torch burned out. Vision back to normal.';
+    }
+  }
+
   finishTurn() {
     redraw();
   }
@@ -603,6 +727,7 @@ class DungeonGame {
     if (this.gameOver) {
       this.player.resetForNewRun();
       this.level = 1;
+      this.torchMovesRemaining = 0;
       this.generateLevel();
       redraw();
       return false;
@@ -628,6 +753,7 @@ class DungeonGame {
     if (this.gameOver) {
       this.player.resetForNewRun();
       this.level = 1;
+      this.torchMovesRemaining = 0;
       this.generateLevel();
       redraw();
       return false;
