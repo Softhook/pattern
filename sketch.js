@@ -103,10 +103,23 @@ class LevelGenerator {
     const wallChance = min(0.15 + level * 0.02, 0.30);
     const grid = this._buildGrid(cols, rows, wallChance);
 
-    player.x = 1; player.y = 1;
-    grid[1][1] = grid[2][1] = grid[1][2] = 0;
-
     const stairs = this._placeStairs(grid, cols, rows);
+
+    let pCell = null;
+    for (let i = 0; i < 50; i++) {
+      const cell = this._pickFloor(grid, cols, rows);
+      if (cell && dist(cell.x, cell.y, stairs.x, stairs.y) > 4) {
+        pCell = cell;
+        break;
+      }
+    }
+    if (!pCell) pCell = { x: 1, y: 1 };
+    
+    player.x = pCell.x; player.y = pCell.y;
+    grid[player.x][player.y] = 0;
+    if (player.x + 1 < cols - 1) grid[player.x + 1][player.y] = 0;
+    if (player.y + 1 < rows - 1) grid[player.x][player.y + 1] = 0;
+
     const items  = this._placeItems(grid, cols, rows, level, stairs);
     const enemies = this._placeEnemies(grid, cols, rows, level);
 
