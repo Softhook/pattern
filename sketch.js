@@ -25,7 +25,8 @@ const KEY_MAP = {
 
 const ENEMY_DEFS = {
   skull:  { hpDamage: 1, aggroRange: 6, moveChance: 0.7 },
-  brute:  { hpDamage: 2, aggroRange: 4, moveChance: 0.5 }
+  brute:  { hpDamage: 2, aggroRange: 4, moveChance: 0.5 },
+  archer: { hpDamage: 1, aggroRange: 3, moveChance: 0, isRanged: true, range: 3 }
 };
 
 const ITEM_DEFS = {
@@ -48,7 +49,7 @@ const ITEM_DEFS = {
   torch: {
     apply(_item, g) {
       g.torchMovesRemaining = TORCH_DURATION_MOVES;
-      g.revealAroundPlayer();
+      g._reveal();
     },
     msg: () => `Lit torch! Vision +1 for ${TORCH_DURATION_MOVES} moves.`
   }
@@ -144,7 +145,9 @@ class LevelGenerator {
     for (let i = 0, n = floor(2 + level * 1.5); i < n; i++) {
       const cell = this._pickFloor(grid, cols, rows, 3);
       if (!cell) continue;
-      enemies.push(new EnemyEntity(cell.x, cell.y, random() < 0.75 ? 'skull' : 'brute'));
+      const r = random();
+      const kind = r < 0.60 ? 'skull' : (r < 0.85 ? 'brute' : 'archer');
+      enemies.push(new EnemyEntity(cell.x, cell.y, kind));
     }
     return enemies;
   }
@@ -232,7 +235,11 @@ class Renderer {
     }
 
     for (const e of g.enemies) {
-      if (g.isVisible(e.x, e.y)) (e.kind === 'brute' ? this._drawBrute(e.x, e.y) : this._drawSkull(e.x, e.y));
+      if (g.isVisible(e.x, e.y)) {
+        if (e.kind === 'brute') this._drawBrute(e.x, e.y);
+        else if (e.kind === 'archer') this._drawArcher(e.x, e.y);
+        else this._drawSkull(e.x, e.y);
+      }
     }
 
     this._drawPlayer(g.player.x, g.player.y);
@@ -286,9 +293,18 @@ class Renderer {
     ellipse(cx + s * 0.10, cy - s * 0.10, s * 0.16, s * 0.16);
     rect(cx - s * 0.03, cy + s * 0.06, s * 0.06, s * 0.07);
     for (const off of [0.31, 0.44, 0.57]) rect(px + s * off, py + s * 0.56, s * 0.07, s * 0.10);
-    fill(0);
-    triangle(cx - s * 0.22, py + s * 0.14, cx - s * 0.10, py + s * 0.14, cx - s * 0.16, py);
-    triangle(cx + s * 0.10, py + s * 0.14, cx + s * 0.22, py + s * 0.14, cx + s * 0.16, py);
+  }
+
+  _drawArcher(gc, gr) {
+    const { px, py, s, cx, cy } = this._cell(gc, gr);
+    fill(0); noStroke();
+    triangle(cx, py + s * 0.1, px + s * 0.8, py + s * 0.8, px + s * 0.2, py + s * 0.8);
+    fill(255);
+    rect(cx - s * 0.15, cy + s * 0.05, s * 0.3, s * 0.08);
+    stroke(0); noFill(); strokeWeight(3);
+    arc(px + s * 0.7, cy + s * 0.1, s * 0.4, s * 0.4, -PI/2, PI/2);
+    line(px + s * 0.7, cy - s * 0.1, px + s * 0.7, cy + s * 0.3);
+    noStroke();
   }
 
   _drawBrute(gc, gr) {
@@ -473,9 +489,35 @@ class DungeonGame {
     redraw();
   }
 
+  _clearLine(x0, y0, x1, y1) {
+    let dx = abs(x1 - x0), dy = abs(y1 - y0);
+    let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    while(true) {
+      if (this.grid[x0][y0] === 1) return false;
+      if (x0 === x1 && y0 === y1) return true;
+      let e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+  }
+
   _moveEnemies() {
+    let rangedMsg = '';
     for (const e of this.enemies) {
-      if (dist(e.x, e.y, this.player.x, this.player.y) >= e.spec.aggroRange) continue;
+      if (dist(e.x, e.y, this.player.x, this.player.y) > e.spec.aggroRange) continue;
+
+      if (e.spec.isRanged) {
+        if (dist(e.x, e.y, this.player.x, this.player.y) <= e.spec.range) {
+          if (this._clearLine(e.x, e.y, this.player.x, this.player.y)) {
+            this.player.hp -= e.spec.hpDamage;
+            rangedMsg = `Shot by ${e.kind}! `;
+            if (this.player.hp <= 0) this.gameOver = true;
+          }
+        }
+        continue;
+      }
+
       if (random() > e.spec.moveChance) continue;
       const dx = Math.sign(this.player.x - e.x);
       const dy = Math.sign(this.player.y - e.y);
@@ -483,6 +525,8 @@ class DungeonGame {
       else if (this._walkable(e.x, e.y + dy))      e.y += dy;
       else if (this._walkable(e.x + dx, e.y + dy)) { e.x += dx; e.y += dy; }
     }
+    if (this.gameOver) this.statusMsg = 'You have been defeated...';
+    else if (rangedMsg) this.statusMsg = rangedMsg + this.statusMsg;
   }
 
   _walkable(x, y) {
