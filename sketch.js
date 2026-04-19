@@ -539,9 +539,20 @@ class DungeonGame {
       if (random() > e.spec.moveChance) continue;
       const dx = Math.sign(this.player.x - e.x);
       const dy = Math.sign(this.player.y - e.y);
-      if (this._walkable(e.x + dx, e.y)) e.x += dx;
-      else if (this._walkable(e.x, e.y + dy)) e.y += dy;
-      else if (this._walkable(e.x + dx, e.y + dy)) { e.x += dx; e.y += dy; }
+      
+      let nx = e.x, ny = e.y;
+      if (this._walkable(e.x + dx, e.y)) nx += dx;
+      else if (this._walkable(e.x, e.y + dy)) ny += dy;
+      else if (this._walkable(e.x + dx, e.y + dy)) { nx += dx; ny += dy; }
+
+      if (nx === this.player.x && ny === this.player.y) {
+        this.player.hp -= e.spec.hpDamage;
+        rangedMsg = `Hit by ${e.kind}! ` + rangedMsg;
+        if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
+      } else {
+        e.x = nx;
+        e.y = ny;
+      }
     }
     if (this.gameOver) this.statusMsg = 'You have been defeated...';
     else if (rangedMsg) this.statusMsg = rangedMsg + this.statusMsg;
