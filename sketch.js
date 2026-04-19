@@ -193,6 +193,7 @@ class Renderer {
     this._drawGrid();
     this._drawMoveHints();
     this._drawEntities();
+    this._drawRecentHits();
     this._drawStatusBar();
   }
 
@@ -235,6 +236,40 @@ class Renderer {
     for (const m of moves) {
       rect(m.nx * CELL_SIZE + 6, STATS_H + m.ny * CELL_SIZE + 6, CELL_SIZE - 12, CELL_SIZE - 12);
     }
+  }
+
+  _drawRecentHits() {
+    const g = this.game;
+    if (!g.recentHits || !g.recentHits.length) return;
+    
+    fill(0);
+    stroke(255);
+    strokeWeight(2);
+    
+    for (const h of g.recentHits) {
+      const px = h.x * CELL_SIZE;
+      const py = STATS_H + h.y * CELL_SIZE;
+      const cx = px + CELL_SIZE / 2;
+      const cy = py + CELL_SIZE / 2;
+      
+      this._drawStar(cx, cy, CELL_SIZE * 0.15, CELL_SIZE * 0.35, 5);
+    }
+    noStroke();
+  }
+
+  _drawStar(cx, cy, radius1, radius2, npoints) {
+    let angle = TWO_PI / npoints;
+    let halfAngle = angle / 2.0;
+    beginShape();
+    for (let a = 0; a < TWO_PI; a += angle) {
+      let sx = cx + cos(a - HALF_PI) * radius2;
+      let sy = cy + sin(a - HALF_PI) * radius2;
+      vertex(sx, sy);
+      sx = cx + cos(a + halfAngle - HALF_PI) * radius1;
+      sy = cy + sin(a + halfAngle - HALF_PI) * radius1;
+      vertex(sx, sy);
+    }
+    endShape(CLOSE);
   }
 
   _drawEntities() {
@@ -396,6 +431,7 @@ class DungeonGame {
     this.level = 1;
     this.player = new PlayerEntity();
     this.enemies = []; this.items = [];
+    this.recentHits = [];
     this.stairs = new GridEntity(0, 0, 'stairs');
     this.statusMsg = '';
     this.gameOver = false;
@@ -444,6 +480,7 @@ class DungeonGame {
     this.player.reset();
     this.level = 1;
     CELL_SIZE = 72;
+    this.recentHits = [];
     this.torchMovesRemaining = 0;
     this._recalc();
     this._genLevel();
@@ -460,6 +497,7 @@ class DungeonGame {
 
   move(dx, dy) {
     if (this.gameOver) return;
+    this.recentHits = [];
     const nx = this.player.x + dx, ny = this.player.y + dy;
     if (!this._walkable(nx, ny)) return;
 
@@ -470,6 +508,7 @@ class DungeonGame {
         this.enemies.splice(i, 1);
         const dmg = max(1, e.spec.hpDamage - this.player.weaponTier);
         this.player.hp -= dmg;
+        this.recentHits.push({ x: (this.player.x + nx) / 2, y: (this.player.y + ny) / 2 });
         this.statusMsg = this.player.hp <= 0
           ? (this.gameOver = true, this.gameOverTime = millis(), 'You have been defeated...')
           : `Defeated ${e.kind}. HP remaining: ${this.player.hp}`;
@@ -530,6 +569,7 @@ class DungeonGame {
           if (this._clearLine(e.x, e.y, this.player.x, this.player.y)) {
             this.player.hp -= e.spec.hpDamage;
             rangedMsg = `Shot by ${e.kind}! `;
+            this.recentHits.push({ x: (e.x + this.player.x) / 2, y: (e.y + this.player.y) / 2 });
             if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
           }
         }
@@ -548,6 +588,7 @@ class DungeonGame {
       if (nx === this.player.x && ny === this.player.y) {
         this.player.hp -= e.spec.hpDamage;
         rangedMsg = `Hit by ${e.kind}! ` + rangedMsg;
+        this.recentHits.push({ x: (e.x + this.player.x) / 2, y: (e.y + this.player.y) / 2 });
         if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
       } else {
         e.x = nx;
