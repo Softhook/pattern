@@ -122,7 +122,7 @@ class LevelGenerator {
     if (player.y + 1 < rows - 1) grid[player.x][player.y + 1] = 0;
 
     const items = this._placeItems(grid, cols, rows, level, stairs);
-    const enemies = this._placeEnemies(grid, cols, rows, level);
+    const enemies = this._placeEnemies(grid, cols, rows, level, items);
 
     return { grid, stairs, items, enemies };
   }
@@ -147,6 +147,7 @@ class LevelGenerator {
     for (let i = 0, n = 4 + level; i < n; i++) {
       const cell = this._pickFloor(grid, cols, rows);
       if (!cell || (cell.x === stairs.x && cell.y === stairs.y)) continue;
+      if (items.some(it => it.x === cell.x && it.y === cell.y)) continue;
       const roll = random();
       const entry = ITEM_TABLE.find(e => roll < e.cutoff);
       items.push(new ItemEntity(cell.x, cell.y, entry.kind, entry.amt(level)));
@@ -154,11 +155,13 @@ class LevelGenerator {
     return items;
   }
 
-  _placeEnemies(grid, cols, rows, level) {
+  _placeEnemies(grid, cols, rows, level, items) {
     const enemies = [];
     for (let i = 0, n = floor(2 + level * 1.5); i < n; i++) {
       const cell = this._pickFloor(grid, cols, rows, 3);
       if (!cell) continue;
+      if (items.some(it => it.x === cell.x && it.y === cell.y)) continue;
+      if (enemies.some(e => e.x === cell.x && e.y === cell.y)) continue;
       const r = random();
       const kind = r < 0.60 ? 'skull' : (r < 0.85 ? 'brute' : 'archer');
       enemies.push(new EnemyEntity(cell.x, cell.y, kind));
@@ -601,9 +604,9 @@ class DungeonGame {
       const dy = Math.sign(this.player.y - e.y);
 
       let nx = e.x, ny = e.y;
-      if (this._walkable(e.x + dx, e.y)) nx += dx;
-      else if (this._walkable(e.x, e.y + dy)) ny += dy;
-      else if (this._walkable(e.x + dx, e.y + dy)) { nx += dx; ny += dy; }
+      if (this._walkable(e.x + dx, e.y) && !this._isOccupiedByEntity(e.x + dx, e.y, e)) nx += dx;
+      else if (this._walkable(e.x, e.y + dy) && !this._isOccupiedByEntity(e.x, e.y + dy, e)) ny += dy;
+      else if (this._walkable(e.x + dx, e.y + dy) && !this._isOccupiedByEntity(e.x + dx, e.y + dy, e)) { nx += dx; ny += dy; }
 
       if (nx === this.player.x && ny === this.player.y) {
         const dmg = max(1, e.spec.hpDamage - this.player.armorTier);
@@ -622,6 +625,16 @@ class DungeonGame {
 
   _walkable(x, y) {
     return x >= 0 && y >= 0 && x < this.cols && y < this.rows && this.grid[x][y] === 0;
+  }
+
+  _isOccupiedByEntity(x, y, ignoreEnemy = null) {
+    for (const item of this.items) {
+      if (item.x === x && item.y === y) return true;
+    }
+    for (const enemy of this.enemies) {
+      if (enemy !== ignoreEnemy && enemy.x === x && enemy.y === y) return true;
+    }
+    return false;
   }
 
   getVisionRadius() {
