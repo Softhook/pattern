@@ -240,11 +240,11 @@ class Renderer {
   _drawEntities() {
     const g = this.game;
 
-    if (g.isVisible(g.stairs.x, g.stairs.y)) this._drawStairs(g.stairs.x, g.stairs.y);
+    if (g.isDiscovered(g.stairs.x, g.stairs.y)) this._drawStairs(g.stairs.x, g.stairs.y);
 
     const itemSprites = { gold: '_drawGold', potion: '_drawPotion', weapon: '_drawWeapon', torch: '_drawTorch' };
     for (const item of g.items) {
-      if (g.isVisible(item.x, item.y) && itemSprites[item.kind]) this[itemSprites[item.kind]](item.x, item.y);
+      if (g.isDiscovered(item.x, item.y) && itemSprites[item.kind]) this[itemSprites[item.kind]](item.x, item.y);
     }
 
     for (const e of g.enemies) {
@@ -399,6 +399,7 @@ class DungeonGame {
     this.stairs = new GridEntity(0, 0, 'stairs');
     this.statusMsg = '';
     this.gameOver = false;
+    this.gameOverTime = 0;
     this.torchMovesRemaining = 0;
     this.discovered = [];
     this._bootShown = false;
@@ -470,7 +471,7 @@ class DungeonGame {
         const dmg = max(1, e.spec.hpDamage - this.player.weaponTier);
         this.player.hp -= dmg;
         this.statusMsg = this.player.hp <= 0
-          ? (this.gameOver = true, 'You have been defeated...')
+          ? (this.gameOver = true, this.gameOverTime = millis(), 'You have been defeated...')
           : `Defeated ${e.kind}. HP remaining: ${this.player.hp}`;
         return void redraw();
       }
@@ -529,7 +530,7 @@ class DungeonGame {
           if (this._clearLine(e.x, e.y, this.player.x, this.player.y)) {
             this.player.hp -= e.spec.hpDamage;
             rangedMsg = `Shot by ${e.kind}! `;
-            if (this.player.hp <= 0) this.gameOver = true;
+            if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
           }
         }
         continue;
@@ -579,7 +580,10 @@ class DungeonGame {
   }
 
   handleTapAt(px, py) {
-    if (this.gameOver) return this._restart(), false;
+    if (this.gameOver) {
+      if (millis() - this.gameOverTime > 500) this._restart();
+      return false;
+    }
     const gx = floor(px / CELL_SIZE), gy = floor((py - STATS_H) / CELL_SIZE);
     const m = this.getValidMoves().find(m => m.nx === gx && m.ny === gy);
     if (m) { this.move(m.dx, m.dy); return false; }
@@ -589,7 +593,10 @@ class DungeonGame {
   }
 
   keyPressed() {
-    if (this.gameOver) return this._restart(), false;
+    if (this.gameOver) {
+      if (millis() - this.gameOverTime > 500) this._restart();
+      return false;
+    }
     const dir = KEY_MAP[key] || KEY_MAP[
       keyCode === UP_ARROW ? 'ArrowUp' : keyCode === DOWN_ARROW ? 'ArrowDown'
         : keyCode === LEFT_ARROW ? 'ArrowLeft' : keyCode === RIGHT_ARROW ? 'ArrowRight' : ''
