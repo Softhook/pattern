@@ -8,7 +8,7 @@ const BASE_VISION_RADIUS = 2;
 const TORCH_VISION_RADIUS = 3;
 const TORCH_DURATION_MOVES = 30;
 
-const PLAYER_DEFAULTS = { x: 1, y: 1, hp: 5, gold: 0, weaponTier: 0 };
+const PLAYER_DEFAULTS = { x: 1, y: 1, hp: 5, gold: 0, armorTier: 0 };
 
 const DIRECTIONS = [
   { dx: 0, dy: -1 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }, { dx: 1, dy: 0 },
@@ -24,9 +24,9 @@ const KEY_MAP = {
 };
 
 const ENEMY_DEFS = {
-  skull: { hpDamage: 1, aggroRange: 6, moveChance: 0.7 },
-  brute: { hpDamage: 2, aggroRange: 4, moveChance: 0.5 },
-  archer: { hpDamage: 1, aggroRange: 3, moveChance: 0, isRanged: true, range: 3 }
+  skull: { hpDamage: 1, aggroRange: 6, moveChance: 0.7, maxHp: 1 },
+  brute: { hpDamage: 2, aggroRange: 4, moveChance: 0.5, maxHp: 3 },
+  archer: { hpDamage: 1, aggroRange: 3, moveChance: 0.1, isRanged: true, range: 3, maxHp: 1 }
 };
 
 const ITEM_DEFS = {
@@ -42,9 +42,9 @@ const ITEM_DEFS = {
     },
     msg: (item) => `Drank potion (+${item._healed} HP)`
   },
-  weapon: {
-    apply(_item, g) { g.player.weaponTier += 1; },
-    msg: (_item, g) => `Found weapon ${g.player.weaponTier}.`
+  armor: {
+    apply(_item, g) { g.player.armorTier += 1; },
+    msg: (_item, g) => `Found armor ${g.player.armorTier}.`
   },
   torch: {
     apply(_item, g) {
@@ -58,7 +58,7 @@ const ITEM_DEFS = {
 const ITEM_TABLE = [
   { cutoff: 0.70, kind: 'gold', amt: (lvl) => 5 + lvl * 2 },
   { cutoff: 0.88, kind: 'potion', amt: () => 2 },
-  { cutoff: 0.96, kind: 'weapon', amt: () => 1 },
+  { cutoff: 0.96, kind: 'armor', amt: () => 1 },
   { cutoff: 1.00, kind: 'torch', amt: () => 1 }
 ];
 
@@ -84,6 +84,7 @@ class EnemyEntity extends GridEntity {
   constructor(x, y, kind) {
     super(x, y, kind);
     this.spec = ENEMY_DEFS[kind] || ENEMY_DEFS.skull;
+    this.hp = this.spec.maxHp || 1;
   }
 }
 
@@ -204,7 +205,7 @@ class Renderer {
 
     const hearts = '♥'.repeat(g.player.hp);
     const torch = g.torchMovesRemaining > 0 ? g.torchMovesRemaining : '-';
-    text(`  ${hearts} | Level ${g.level} | £${g.player.gold} | W:${g.player.weaponTier} | T:${torch}`, 0, STATS_H / 2);
+    text(`  ${hearts} | Level ${g.level} | £${g.player.gold} | A:${g.player.armorTier} | T:${torch}`, 0, STATS_H / 2);
   }
 
   _drawGrid() {
@@ -241,17 +242,17 @@ class Renderer {
   _drawRecentHits() {
     const g = this.game;
     if (!g.recentHits || !g.recentHits.length) return;
-    
+
     fill(0);
     stroke(255);
     strokeWeight(2);
-    
+
     for (const h of g.recentHits) {
       const px = h.x * CELL_SIZE;
       const py = STATS_H + h.y * CELL_SIZE;
       const cx = px + CELL_SIZE / 2;
       const cy = py + CELL_SIZE / 2;
-      
+
       this._drawStar(cx, cy, CELL_SIZE * 0.15, CELL_SIZE * 0.35, 5);
     }
     noStroke();
@@ -277,7 +278,7 @@ class Renderer {
 
     if (g.isDiscovered(g.stairs.x, g.stairs.y)) this._drawStairs(g.stairs.x, g.stairs.y);
 
-    const itemSprites = { gold: '_drawGold', potion: '_drawPotion', weapon: '_drawWeapon', torch: '_drawTorch' };
+    const itemSprites = { gold: '_drawGold', potion: '_drawPotion', armor: '_drawArmor', torch: '_drawTorch' };
     for (const item of g.items) {
       if (g.isDiscovered(item.x, item.y) && itemSprites[item.kind]) this[itemSprites[item.kind]](item.x, item.y);
     }
@@ -395,13 +396,24 @@ class Renderer {
     fill(255); rect(px + s * 0.33, py + s * 0.42, s * 0.34, s * 0.24);
   }
 
-  _drawWeapon(gc, gr) {
-    const { px, py, s } = this._cell(gc, gr);
-    stroke(0); strokeWeight(4); noFill();
-    line(px + s * 0.25, py + s * 0.75, px + s * 0.75, py + s * 0.25);
-    line(px + s * 0.20, py + s * 0.80, px + s * 0.35, py + s * 0.65);
-    line(px + s * 0.65, py + s * 0.35, px + s * 0.80, py + s * 0.20);
-    noStroke();
+  _drawArmor(gc, gr) {
+    const { px, py, s, cx, cy } = this._cell(gc, gr);
+    fill(0); noStroke();
+    beginShape();
+    vertex(cx - s * 0.25, cy - s * 0.25);
+    vertex(cx + s * 0.25, cy - s * 0.25);
+    vertex(cx + s * 0.25, cy + s * 0.05);
+    bezierVertex(cx + s * 0.25, cy + s * 0.3, cx, cy + s * 0.4, cx, cy + s * 0.4);
+    bezierVertex(cx, cy + s * 0.4, cx - s * 0.25, cy + s * 0.3, cx - s * 0.25, cy + s * 0.05);
+    endShape(CLOSE);
+    fill(255);
+    beginShape();
+    vertex(cx - s * 0.15, cy - s * 0.15);
+    vertex(cx + s * 0.15, cy - s * 0.15);
+    vertex(cx + s * 0.15, cy + s * 0.05);
+    bezierVertex(cx + s * 0.15, cy + s * 0.2, cx, cy + s * 0.3, cx, cy + s * 0.3);
+    bezierVertex(cx, cy + s * 0.3, cx - s * 0.15, cy + s * 0.2, cx - s * 0.15, cy + s * 0.05);
+    endShape(CLOSE);
   }
 
   _drawTorch(gc, gr) {
@@ -501,47 +513,54 @@ class DungeonGame {
     const nx = this.player.x + dx, ny = this.player.y + dy;
     if (!this._walkable(nx, ny)) return;
 
+    let attacked = false;
     // Combat
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (e.x === nx && e.y === ny) {
-        this.enemies.splice(i, 1);
-        const dmg = max(1, e.spec.hpDamage - this.player.weaponTier);
-        this.player.hp -= dmg;
+        e.hp -= 1;
         this.recentHits.push({ x: (this.player.x + nx) / 2, y: (this.player.y + ny) / 2 });
-        this.statusMsg = this.player.hp <= 0
-          ? (this.gameOver = true, this.gameOverTime = millis(), 'You have been defeated...')
-          : `Defeated ${e.kind}. HP remaining: ${this.player.hp}`;
+
+        if (e.hp <= 0) {
+          this.enemies.splice(i, 1);
+          this.statusMsg = `Defeated ${e.kind}.`;
+        } else {
+          this.statusMsg = `Hit ${e.kind}. Enemy HP: ${e.hp}`;
+        }
+        attacked = true;
+        break;
+      }
+    }
+
+    if (!attacked) {
+      // Item pickup
+      let pickedUp = false;
+      for (let i = this.items.length - 1; i >= 0; i--) {
+        const item = this.items[i];
+        if (item.x === nx && item.y === ny) {
+          const def = ITEM_DEFS[item.kind];
+          def.apply(item, this);
+          this.statusMsg = def.msg(item, this);
+          this.items.splice(i, 1);
+          pickedUp = true;
+        }
+      }
+
+      // Stairs
+      if (nx === this.stairs.x && ny === this.stairs.y) {
+        this.level++;
+        CELL_SIZE = max(10, CELL_SIZE - 2);
+        this._recalc();
+        this._genLevel();
         return void redraw();
       }
+
+      this.player.x = nx; this.player.y = ny;
+      if (!pickedUp) this.statusMsg = '';
     }
 
-    // Item pickup
-    let pickedUp = false;
-    for (let i = this.items.length - 1; i >= 0; i--) {
-      const item = this.items[i];
-      if (item.x === nx && item.y === ny) {
-        const def = ITEM_DEFS[item.kind];
-        def.apply(item, this);
-        this.statusMsg = def.msg(item, this);
-        this.items.splice(i, 1);
-        pickedUp = true;
-      }
-    }
-
-    // Stairs
-    if (nx === this.stairs.x && ny === this.stairs.y) {
-      this.level++;
-      CELL_SIZE = max(10, CELL_SIZE - 2);
-      this._recalc();
-      this._genLevel();
-      return void redraw();
-    }
-
-    this.player.x = nx; this.player.y = ny;
     this._consumeTorch();
     this._reveal();
-    if (!pickedUp) this.statusMsg = '';
     this._moveEnemies();
     redraw();
   }
@@ -567,7 +586,8 @@ class DungeonGame {
       if (e.spec.isRanged) {
         if (dist(e.x, e.y, this.player.x, this.player.y) <= e.spec.range) {
           if (this._clearLine(e.x, e.y, this.player.x, this.player.y)) {
-            this.player.hp -= e.spec.hpDamage;
+            const dmg = max(1, e.spec.hpDamage - this.player.armorTier);
+            this.player.hp -= dmg;
             rangedMsg = `Shot by ${e.kind}! `;
             this.recentHits.push({ x: (e.x + this.player.x) / 2, y: (e.y + this.player.y) / 2 });
             if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
@@ -579,14 +599,15 @@ class DungeonGame {
       if (random() > e.spec.moveChance) continue;
       const dx = Math.sign(this.player.x - e.x);
       const dy = Math.sign(this.player.y - e.y);
-      
+
       let nx = e.x, ny = e.y;
       if (this._walkable(e.x + dx, e.y)) nx += dx;
       else if (this._walkable(e.x, e.y + dy)) ny += dy;
       else if (this._walkable(e.x + dx, e.y + dy)) { nx += dx; ny += dy; }
 
       if (nx === this.player.x && ny === this.player.y) {
-        this.player.hp -= e.spec.hpDamage;
+        const dmg = max(1, e.spec.hpDamage - this.player.armorTier);
+        this.player.hp -= dmg;
         rangedMsg = `Hit by ${e.kind}! ` + rangedMsg;
         this.recentHits.push({ x: (e.x + this.player.x) / 2, y: (e.y + this.player.y) / 2 });
         if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
