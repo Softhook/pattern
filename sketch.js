@@ -420,14 +420,24 @@ class Renderer {
   }
 
   _drawTorch(gc, gr) {
-    const { px, py, s, cx } = this._cell(gc, gr);
+    const { px, py, s, cx, cy } = this._cell(gc, gr);
     fill(0); noStroke();
-    rect(cx - s * 0.05, py + s * 0.26, s * 0.10, s * 0.42);
-    rect(cx - s * 0.10, py + s * 0.64, s * 0.20, s * 0.08);
+    // Handle
+    rect(cx - s * 0.06, py + s * 0.40, s * 0.12, s * 0.35);
+    rect(cx - s * 0.10, py + s * 0.70, s * 0.20, s * 0.08);
+    // Main Flame
     fill(255);
     beginShape();
-    vertex(cx, py + s * 0.12); vertex(cx + s * 0.12, py + s * 0.28);
-    vertex(cx, py + s * 0.34); vertex(cx - s * 0.12, py + s * 0.28);
+    vertex(cx, py + s * 0.10);
+    bezierVertex(cx + s * 0.20, py + s * 0.25, cx + s * 0.15, py + s * 0.45, cx, py + s * 0.45);
+    bezierVertex(cx - s * 0.15, py + s * 0.45, cx - s * 0.20, py + s * 0.25, cx, py + s * 0.10);
+    endShape(CLOSE);
+    // Inner dark flame detail
+    fill(0);
+    beginShape();
+    vertex(cx, py + s * 0.24);
+    bezierVertex(cx + s * 0.08, py + s * 0.32, cx + s * 0.06, py + s * 0.42, cx, py + s * 0.42);
+    bezierVertex(cx - s * 0.06, py + s * 0.42, cx - s * 0.08, py + s * 0.32, cx, py + s * 0.24);
     endShape(CLOSE);
   }
 
@@ -522,7 +532,7 @@ class DungeonGame {
       const e = this.enemies[i];
       if (e.x === nx && e.y === ny) {
         e.hp -= 1;
-        this.recentHits.push({ x: (this.player.x + nx) / 2, y: (this.player.y + ny) / 2 });
+        this.recentHits.push({ x: nx, y: ny });
 
         if (e.hp <= 0) {
           this.enemies.splice(i, 1);
@@ -592,7 +602,7 @@ class DungeonGame {
             const dmg = max(1, e.spec.hpDamage - this.player.armorTier);
             this.player.hp -= dmg;
             rangedMsg = `Shot by ${e.kind}! `;
-            this.recentHits.push({ x: (e.x + this.player.x) / 2, y: (e.y + this.player.y) / 2 });
+            this.recentHits.push({ x: this.player.x, y: this.player.y });
             if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
           }
         }
@@ -612,7 +622,7 @@ class DungeonGame {
         const dmg = max(1, e.spec.hpDamage - this.player.armorTier);
         this.player.hp -= dmg;
         rangedMsg = `Hit by ${e.kind}! ` + rangedMsg;
-        this.recentHits.push({ x: (e.x + this.player.x) / 2, y: (e.y + this.player.y) / 2 });
+        this.recentHits.push({ x: this.player.x, y: this.player.y });
         if (this.player.hp <= 0) { this.gameOver = true; this.gameOverTime = millis(); }
       } else {
         e.x = nx;
